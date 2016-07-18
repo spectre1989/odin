@@ -46,8 +46,6 @@ void main()
 		WSACleanup();
 		return;
 	}
-	
-	printf( "done" );
 
 	WSACleanup();
 }

@@ -38,22 +38,53 @@ void main()
 	}
 
 	char buffer[SOCKET_BUFFER_SIZE];
-	int flags = 0;
-	SOCKADDR_IN from;
-	int from_size = sizeof( from );
-	int bytes_received = recvfrom( sock, buffer, SOCKET_BUFFER_SIZE, flags, (SOCKADDR*)&from, &from_size );
-	
-	if( bytes_received == SOCKET_ERROR )
+	int32 player_x = 0;
+	int32 player_y = 0;
+
+	while( true )
 	{
-		printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", WSAGetLastError() );
+		// get input packet from player
+		int flags = 0;
+		SOCKADDR_IN from;
+		int from_size = sizeof( from );
+		int bytes_received = recvfrom( sock, buffer, SOCKET_BUFFER_SIZE, flags, (SOCKADDR*)&from, &from_size );
+		
+		if( bytes_received == SOCKET_ERROR )
+		{
+			printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", WSAGetLastError() );
+			break;
+		}
+		
+		// process input
+		char client_input = buffer[0];
+		printf( "%d.%d.%d.%d:%d - %c", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
+
+		switch( client_input )
+		{
+			case 'w':
+				++player_y;
+			break;
+
+			case 'a':
+				--player_x;
+			break;
+
+			case 's':
+				--player_y;
+			break;
+
+			case 'd':
+				++player_x;
+			break;
+
+			default:
+				printf( "unhandled input %c\n", client_input );
+			break;
+		}
+		
+		// reply with state update
+		
 	}
-	else
-	{
-		buffer[bytes_received] = 0;
-		printf( "%d.%d.%d.%d:%d - %s", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, buffer );
-	}
-	
-	printf( "done" );
 
 	WSACleanup();
 }
