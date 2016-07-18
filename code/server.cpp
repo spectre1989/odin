@@ -13,6 +13,7 @@ void main()
 		return;
 	}
 
+	// todo( jbr ) make sure internal socket buffer is big enough
 	int address_family = AF_INET;
 	int type = SOCK_DGRAM;
 	int protocol = IPPROTO_UDP;
@@ -21,6 +22,7 @@ void main()
 	if( sock == INVALID_SOCKET )
 	{
 		printf( "socket failed: %d", WSAGetLastError() );
+		WSACleanup();
 		return;
 	}
 
@@ -31,6 +33,7 @@ void main()
 	if( bind( sock, (SOCKADDR*)&local_address, sizeof( local_address ) ) == SOCKET_ERROR )
 	{
 		printf( "bind failed: %d", WSAGetLastError() );
+		WSACleanup();
 		return;
 	}
 

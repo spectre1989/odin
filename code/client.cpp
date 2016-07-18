@@ -21,21 +21,29 @@ void main()
 	if( sock == INVALID_SOCKET )
 	{
 		printf( "socket failed: %d", WSAGetLastError() );
+		WSACleanup();
 		return;
 	}
 
 	SOCKADDR_IN server_address;
 	server_address.sin_family = AF_INET;
 	server_address.sin_port = htons( PORT );
-	server_address.sin_addr.S_un.S_addr = inet_addr( "127.0.0.1" );
+	server_address.sin_addr.S_un.S_un_b.s_b1 = 127;
+	server_address.sin_addr.S_un.S_un_b.s_b2 = 0;
+	server_address.sin_addr.S_un.S_un_b.s_b3 = 0;
+	server_address.sin_addr.S_un.S_un_b.s_b4 = 1;
 
 	char message[SOCKET_BUFFER_SIZE];
 	gets_s( message, SOCKET_BUFFER_SIZE );
 
+	int message_length = int( strlen( message ) );
 	int flags = 0;
-	if( sendto( sock, message, strlen( message ), flags, (SOCKADDR*)&server_address, sizeof( server_address ) ) == SOCKET_ERROR )
+	SOCKADDR* to = (SOCKADDR*)&server_address;
+	int to_length = sizeof( server_address );
+	if( sendto( sock, message, message_length, flags, to, to_length ) == SOCKET_ERROR )
 	{
 		printf( "sendto failed: %d", WSAGetLastError() );
+		WSACleanup();
 		return;
 	}
 	
