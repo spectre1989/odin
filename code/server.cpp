@@ -37,11 +37,12 @@ void main()
 		return;
 	}
 
-	char buffer[SOCKET_BUFFER_SIZE];
+	int8 buffer[SOCKET_BUFFER_SIZE];
 	int32 player_x = 0;
 	int32 player_y = 0;
 
-	while( true )
+	bool32 is_running = 1;
+	while( is_running )
 	{
 		// get input packet from player
 		int flags = 0;
@@ -57,7 +58,7 @@ void main()
 		
 		// process input
 		char client_input = buffer[0];
-		printf( "%d.%d.%d.%d:%d - %c", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
+		printf( "%d.%d.%d.%d:%d - %c\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
 
 		switch( client_input )
 		{
@@ -77,13 +78,36 @@ void main()
 				++player_x;
 			break;
 
+			case 'q':
+				is_running = 0;
+			break;
+
 			default:
 				printf( "unhandled input %c\n", client_input );
 			break;
 		}
 		
-		// reply with state update
-		
+		// create state packet
+		int32 write_index = 0;
+		memcpy( &buffer[write_index], &player_x, sizeof( player_x ) );
+		write_index += sizeof( player_x );
+
+		memcpy( &buffer[write_index], &player_y, sizeof( player_y ) );
+		write_index += sizeof( player_y );
+
+		memcpy( &buffer[write_index], &is_running, sizeof( is_running ) );
+
+		// send back to client
+		int buffer_length = sizeof( player_x ) + sizeof( player_y ) + sizeof( is_running );
+		flags = 0;
+		SOCKADDR* to = (SOCKADDR*)&from;
+		int to_length = sizeof( from );
+		if( sendto( sock, buffer, buffer_length, flags, to, to_length ) == SOCKET_ERROR )
+		{
+			printf( "sendto failed: %d", WSAGetLastError() );
+			WSACleanup();
+			return;
+		}
 	}
 
 	WSACleanup();

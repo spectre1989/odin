@@ -33,18 +33,53 @@ void main()
 	server_address.sin_addr.S_un.S_un_b.s_b3 = 0;
 	server_address.sin_addr.S_un.S_un_b.s_b4 = 1;
 
-	char message[SOCKET_BUFFER_SIZE];
-	gets_s( message, SOCKET_BUFFER_SIZE );
+	int8 buffer[SOCKET_BUFFER_SIZE];
+	int32 player_x;
+	int32 player_y;
 
-	int message_length = int( strlen( message ) );
-	int flags = 0;
-	SOCKADDR* to = (SOCKADDR*)&server_address;
-	int to_length = sizeof( server_address );
-	if( sendto( sock, message, message_length, flags, to, to_length ) == SOCKET_ERROR )
+	printf( "type w, a, s, or d to move, q to quit\n" );
+	bool32 is_running = 1;
+	while( is_running )
 	{
-		printf( "sendto failed: %d", WSAGetLastError() );
-		WSACleanup();
-		return;
+		// get input
+		scanf_s( "\n%c", &buffer[0], 1 );
+
+		// send to server
+		int buffer_length = 1;
+		int flags = 0;
+		SOCKADDR* to = (SOCKADDR*)&server_address;
+		int to_length = sizeof( server_address );
+		if( sendto( sock, buffer, buffer_length, flags, to, to_length ) == SOCKET_ERROR )
+		{
+			printf( "sendto failed: %d", WSAGetLastError() );
+			WSACleanup();
+			return;
+		}
+
+		// wait for reply
+		flags = 0;
+		SOCKADDR_IN from;
+		int from_size = sizeof( from );
+		int bytes_received = recvfrom( sock, buffer, SOCKET_BUFFER_SIZE, flags, (SOCKADDR*)&from, &from_size );
+		
+		if( bytes_received == SOCKET_ERROR )
+		{
+			printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", WSAGetLastError() );
+			break;
+		}
+
+		// grab data from packet
+		int32 read_index = 0;
+
+		memcpy( &player_x, &buffer[read_index], sizeof( player_x ) );
+		read_index += sizeof( player_x );
+
+		memcpy( &player_y, &buffer[read_index], sizeof( player_y ) );
+		read_index += sizeof( player_y );
+
+		memcpy( &is_running, &buffer[read_index], sizeof( is_running ) );
+
+		printf( "x:%d, y:%d, is_running:%d\n", player_x, player_y, is_running );
 	}
 
 	WSACleanup();
