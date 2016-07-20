@@ -61,7 +61,7 @@ void main()
 			break;
 		}
 		
-		// process input
+		// process input and update state
 		int8 client_input = buffer[0];
 		printf( "%d.%d.%d.%d:%d - %d\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
 
@@ -90,7 +90,6 @@ void main()
 			player_facing += TURN_SPEED;
 		}
 
-		// update state
 		player_x += player_speed * cosf( player_facing );
 		player_y += player_speed * sinf( player_facing );
 		
