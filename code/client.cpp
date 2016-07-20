@@ -21,7 +21,6 @@ void main()
 	if( sock == INVALID_SOCKET )
 	{
 		printf( "socket failed: %d", WSAGetLastError() );
-		WSACleanup();
 		return;
 	}
 
@@ -52,7 +51,6 @@ void main()
 		if( sendto( sock, buffer, buffer_length, flags, to, to_length ) == SOCKET_ERROR )
 		{
 			printf( "sendto failed: %d", WSAGetLastError() );
-			WSACleanup();
 			return;
 		}
 
@@ -81,6 +79,4 @@ void main()
 
 		printf( "x:%d, y:%d, is_running:%d\n", player_x, player_y, is_running );
 	}
-
-	WSACleanup();
 }

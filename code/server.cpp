@@ -22,7 +22,6 @@ void main()
 	if( sock == INVALID_SOCKET )
 	{
 		printf( "socket failed: %d", WSAGetLastError() );
-		WSACleanup();
 		return;
 	}
 
@@ -33,7 +32,6 @@ void main()
 	if( bind( sock, (SOCKADDR*)&local_address, sizeof( local_address ) ) == SOCKET_ERROR )
 	{
 		printf( "bind failed: %d", WSAGetLastError() );
-		WSACleanup();
 		return;
 	}
 
@@ -105,10 +103,7 @@ void main()
 		if( sendto( sock, buffer, buffer_length, flags, to, to_length ) == SOCKET_ERROR )
 		{
 			printf( "sendto failed: %d", WSAGetLastError() );
-			WSACleanup();
 			return;
 		}
 	}
-
-	WSACleanup();
 }
