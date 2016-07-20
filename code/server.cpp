@@ -1,7 +1,12 @@
 #include "odin.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <winsock2.h>
+
+const float32 TURN_SPEED = 0.01f;	// how fast player turns
+const float32 ACCELERATION = 0.01f;
+const float32 MAX_SPEED = 1.0f;
 
 void main()
 {
@@ -36,8 +41,10 @@ void main()
 	}
 
 	int8 buffer[SOCKET_BUFFER_SIZE];
-	int32 player_x = 0;
-	int32 player_y = 0;
+	float32 player_x = 0.0f;
+	float32 player_y = 0.0f;
+	float32 player_facing = 0.0f;
+	float32 player_speed = 0.0f;
 
 	bool32 is_running = 1;
 	while( is_running )
@@ -55,52 +62,54 @@ void main()
 		}
 		
 		// process input
-		char client_input = buffer[0];
-		printf( "%d.%d.%d.%d:%d - %c\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
+		int8 client_input = buffer[0];
+		printf( "%d.%d.%d.%d:%d - %d\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
 
-		switch( client_input )
+		if( client_input & 0x1 )	// forward
 		{
-			case 'w':
-				++player_y;
-			break;
-
-			case 'a':
-				--player_x;
-			break;
-
-			case 's':
-				--player_y;
-			break;
-
-			case 'd':
-				++player_x;
-			break;
-
-			case 'q':
-				is_running = 0;
-			break;
-
-			default:
-				printf( "unhandled input %c\n", client_input );
-			break;
+			player_speed += ACCELERATION;
+			if( player_speed > MAX_SPEED )
+			{
+				player_speed = MAX_SPEED;
+			}
 		}
+		if( client_input & 0x2 )	// back
+		{
+			player_speed -= ACCELERATION;
+			if( player_speed < 0.0f )
+			{
+				player_speed = 0.0f;
+			}
+		}
+		if( client_input & 0x4 )	// left
+		{
+			player_facing -= TURN_SPEED;
+		}
+		if( client_input & 0x8 )	// right
+		{
+			player_facing += TURN_SPEED;
+		}
+
+		// update state
+		player_x += player_speed * cosf( player_facing );
+		player_y += player_speed * sinf( player_facing );
 		
 		// create state packet
-		int32 write_index = 0;
-		memcpy( &buffer[write_index], &player_x, sizeof( player_x ) );
-		write_index += sizeof( player_x );
+		int32 bytes_written = 0;
+		memcpy( &buffer[bytes_written], &player_x, sizeof( player_x ) );
+		bytes_written += sizeof( player_x );
 
-		memcpy( &buffer[write_index], &player_y, sizeof( player_y ) );
-		write_index += sizeof( player_y );
+		memcpy( &buffer[bytes_written], &player_y, sizeof( player_y ) );
+		bytes_written += sizeof( player_y );
 
-		memcpy( &buffer[write_index], &is_running, sizeof( is_running ) );
+		memcpy( &buffer[bytes_written], &player_facing, sizeof( player_facing ) );
+		bytes_written += sizeof( player_facing );
 
 		// send back to client
-		int buffer_length = sizeof( player_x ) + sizeof( player_y ) + sizeof( is_running );
 		flags = 0;
 		SOCKADDR* to = (SOCKADDR*)&from;
 		int to_length = sizeof( from );
-		if( sendto( sock, buffer, buffer_length, flags, to, to_length ) == SOCKET_ERROR )
+		if( sendto( sock, buffer, bytes_written, flags, to, to_length ) == SOCKET_ERROR )
 		{
 			printf( "sendto failed: %d", WSAGetLastError() );
 			return;

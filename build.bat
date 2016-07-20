@@ -15,6 +15,5 @@ cd build
 :: OPT:REF - eliminate functions which are never referenced
 :: SUBSYSTEM - environment for executable
 cl /nologo /MT /Z7 /Gm- /GR- /EHs- /EHa- /Od /Oi /FC /W4 /WX ..\code\server.cpp /link /OPT:REF /SUBSYSTEM:CONSOLE ws2_32.lib
-cl /nologo /MT /Z7 /Gm- /GR- /EHs- /EHa- /Od /Oi /FC /W4 /WX ..\code\client.cpp /link /OPT:REF /SUBSYSTEM:CONSOLE ws2_32.lib
 
 cd ..

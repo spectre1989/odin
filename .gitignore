@@ -2,3 +2,5 @@
 *.ilk
 *.obj
 *.pdb
+
+client/Library
