@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using System;
-using system.Net;
+using System.Net;
 using System.Net.Sockets;
 
 public class Client : MonoBehaviour 
@@ -52,8 +52,8 @@ public class Client : MonoBehaviour
 		this.socket.SendTo( this.buffer, 1, SocketFlags.None, this.serverEndPoint );
 
 		// wait for state packet
-		EndPoint remoteEP;
-		this.socket.RecvFrom( this.buffer, ref remoteEP );
+		EndPoint remoteEP = new IPEndPoint( 0, 0 );
+		this.socket.ReceiveFrom( this.buffer, ref remoteEP );
 
 		// unpack game state
 		Vector3 playerPosition = new Vector3( 0.0f, 0.0f, 0.0f );
@@ -68,6 +68,6 @@ public class Client : MonoBehaviour
 		float playerFacing = BitConverter.ToSingle( this.buffer, readIndex );
 
 		this.playerObject.position = playerPosition;
-		this.playerObject.rotation = Quaternion.Euler( 0.0f, playerFacing * Mathf.RadToDeg, 0.0f );
+		this.playerObject.rotation = Quaternion.Euler( 0.0f, playerFacing * Mathf.Rad2Deg, 0.0f );
 	}
 }

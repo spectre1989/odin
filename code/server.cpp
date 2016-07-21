@@ -90,8 +90,8 @@ void main()
 			player_facing += TURN_SPEED;
 		}
 
-		player_x += player_speed * cosf( player_facing );
-		player_y += player_speed * sinf( player_facing );
+		player_x += player_speed * sinf( player_facing );
+		player_y += player_speed * cosf( player_facing );
 		
 		// create state packet
 		int32 bytes_written = 0;
