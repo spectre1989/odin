@@ -3,10 +3,21 @@
 #include <math.h>
 #include <stdio.h>
 #include <winsock2.h>
+#include <windows.h> // windows.h must be included AFTER winsock2.h
 
-const float32 TURN_SPEED = 0.01f;	// how fast player turns
-const float32 ACCELERATION = 0.01f;
-const float32 MAX_SPEED = 1.0f;
+const float32 	TURN_SPEED = 0.01f;	// how fast player turns
+const float32 	ACCELERATION = 0.01f;
+const float32 	MAX_SPEED = 1.0f;
+const uint32	TICKS_PER_SECOND = 60;
+const float32	SECONDS_PER_TICK = 1.0f / float32( TICKS_PER_SECOND );
+
+static float32 time_since( LARGE_INTEGER t, LARGE_INTEGER frequency )
+{
+	LARGE_INTEGER now;
+	QueryPerformanceCounter( &now );
+
+	return float32( now.QuadPart - t.QuadPart ) / float32( frequency.QuadPart );
+}
 
 void main()
 {
@@ -40,6 +51,12 @@ void main()
 		return;
 	}
 
+	UINT sleep_granularity_ms = 1;
+	bool32 sleep_granularity_was_set = timeBeginPeriod( sleep_granularity_ms ) == TIMERR_NOERROR;
+
+	LARGE_INTEGER clock_frequency;
+	QueryPerformanceFrequency( &clock_frequency );
+
 	int8 buffer[SOCKET_BUFFER_SIZE];
 	float32 player_x = 0.0f;
 	float32 player_y = 0.0f;
@@ -49,6 +66,9 @@ void main()
 	bool32 is_running = 1;
 	while( is_running )
 	{
+		LARGE_INTEGER tick_start_time;
+		QueryPerformanceCounter( &tick_start_time );
+
 		// get input packet from player
 		int flags = 0;
 		SOCKADDR_IN from;
@@ -63,7 +83,7 @@ void main()
 		
 		// process input and update state
 		int8 client_input = buffer[0];
-		printf( "%d.%d.%d.%d:%d - %d\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, from.sin_port, client_input );
+		printf( "%d.%d.%d.%d:%d - %d\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, ntohs( from.sin_port ), client_input );
 
 		if( client_input & 0x1 )	// forward
 		{
@@ -112,6 +132,22 @@ void main()
 		{
 			printf( "sendto failed: %d", WSAGetLastError() );
 			return;
+		}
+
+		float32 time_taken_s = time_since( tick_start_time, clock_frequency );
+
+		while( time_taken_s < SECONDS_PER_TICK )
+		{
+			if( sleep_granularity_was_set )
+			{
+				DWORD time_to_wait_ms = DWORD( ( SECONDS_PER_TICK - time_taken_s ) * 1000 );
+				if( time_to_wait_ms > 0 )
+				{
+					Sleep( time_to_wait_ms );
+				}
+			}
+
+			time_taken_s = time_since( tick_start_time, clock_frequency );
 		}
 	}
 }
