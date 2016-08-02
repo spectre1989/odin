@@ -10,6 +10,30 @@ const float32 	ACCELERATION = 20.0f;
 const float32 	MAX_SPEED = 50.0f;
 const uint32	TICKS_PER_SECOND = 60;
 const float32	SECONDS_PER_TICK = 1.0f / float32( TICKS_PER_SECOND );
+const uint16	MAX_CLIENTS = 32;
+
+enum class Client_Message : uint8
+{
+	Join,		// tell server we're new here
+	Leave,		// tell server we're leaving
+	Input 		// tell server our user input
+};
+
+enum class Server_Message : uint8
+{
+	Join_Result,// tell client they're accepted/rejected
+	State 		// tell client game state
+};
+
+struct Player_State
+{
+	float32 x, y, facing, speed;
+};
+
+struct Player_Input
+{
+	bool32 up, down, left, right;
+};
 
 static float32 time_since( LARGE_INTEGER t, LARGE_INTEGER frequency )
 {
@@ -51,6 +75,10 @@ void main()
 		return;
 	}
 
+	// put socket in non-blocking mode
+	uint32 enabled = 1;
+	ioctslsocket( sock, FIONBIO, &enabled );
+
 	UINT sleep_granularity_ms = 1;
 	bool32 sleep_granularity_was_set = timeBeginPeriod( sleep_granularity_ms ) == TIMERR_NOERROR;
 
@@ -58,10 +86,15 @@ void main()
 	QueryPerformanceFrequency( &clock_frequency );
 
 	int8 buffer[SOCKET_BUFFER_SIZE];
-	float32 player_x = 0.0f;
-	float32 player_y = 0.0f;
-	float32 player_facing = 0.0f;
-	float32 player_speed = 0.0f;
+	uint32 client_addresses[MAX_CLIENTS];
+	float32 time_since_heard_from_clients[MAX_CLIENTS];
+	Player_State client_objects[MAX_CLIENTS];
+	Player_Input client_inputs[MAX_CLIENTS];
+
+	for( uint16 i = 0; i < MAX_CLIENTS; ++i )
+	{
+		client_addresses[i] = 0;
+	}
 
 	bool32 is_running = 1;
 	while( is_running )
@@ -69,16 +102,80 @@ void main()
 		LARGE_INTEGER tick_start_time;
 		QueryPerformanceCounter( &tick_start_time );
 
-		// get input packet from player
-		int flags = 0;
-		SOCKADDR_IN from;
-		int from_size = sizeof( from );
-		int bytes_received = recvfrom( sock, buffer, SOCKET_BUFFER_SIZE, flags, (SOCKADDR*)&from, &from_size );
-		
-		if( bytes_received == SOCKET_ERROR )
+		// read all available packets
+		while( true )
 		{
-			printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", WSAGetLastError() );
-			break;
+			int flags = 0;
+			SOCKADDR_IN from;
+			int from_size = sizeof( from );
+			int bytes_received = recvfrom( sock, buffer, SOCKET_BUFFER_SIZE, flags, (SOCKADDR*)&from, &from_size );
+			
+			if( bytes_received == SOCKET_ERROR )
+			{
+				int error = WSAGetLastError();
+				if( error != WSAWOULDBLOCK )
+				{
+					printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", error );
+				}
+				
+				break;
+			}
+
+			switch( buffer[0] )
+			{
+				case Client_Message::Join:
+				{
+					uint16 slot = uint16( -1 );
+					for( uint16 i = 0; i < MAX_CLIENTS; ++i )
+					{
+						if( client_addresses[i] == 0 )
+						{
+							slot = i;
+						}
+					}
+
+					buffer[0] = Server_Message::Join_Result;
+					if( slot != uint16( -1 ) )
+					{
+						slot[1] = 1;
+						memcpy( &buffer[2], &slot, 2 );
+
+						flags = 0;
+						if( sendto( sock, buffer, 4, flags, from, from_size ) == SOCKET_ERROR )
+						{
+							printf( "sendto failed: %d", WSAGetLastError() );
+							return;
+						}
+					}
+					else
+					{
+						slot[1] = 0;
+
+						flags = 0;
+						if( sendto( sock, buffer, 2, flags, from, from_size ) == SOCKET_ERROR )
+						{
+							printf( "sendto failed: %d", WSAGetLastError() );
+							return;
+						}
+					}
+				}
+				break;
+
+				case Client_Message::Leave:
+				{
+					uint16 slot;
+					memcpy( &slot, &buffer[1], 2 );
+
+					if( client_addresses[slot] == from.something )
+					{
+						client_addresses[slot] = 0;
+					}
+				}
+				break;
+
+				case Client_Message::Input:
+				break;
+			}
 		}
 		
 		// process input and update state

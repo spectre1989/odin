@@ -13,6 +13,7 @@ public class Client : MonoBehaviour
 
 	private void OnEnable()
 	{
+		Debug.Log("onenable");
 		this.socket = new Socket( AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp );
 		this.buffer = new byte[sizeof(float) * 3];
 		this.serverEndPoint = new IPEndPoint( IPAddress.Loopback, 9999 );
@@ -20,6 +21,7 @@ public class Client : MonoBehaviour
 
 	private void OnDisable()
 	{
+		Debug.Log("ondisable");
 		this.socket.Shutdown( SocketShutdown.Both );
 		this.buffer = null;
 		this.serverEndPoint = null;
