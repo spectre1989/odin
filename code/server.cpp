@@ -87,7 +87,7 @@ void main()
 
 		if( client_input & 0x1 )	// forward
 		{
-			player_speed += ACCELERATION;
+			player_speed += ACCELERATION * SECONDS_PER_TICK;
 			if( player_speed > MAX_SPEED )
 			{
 				player_speed = MAX_SPEED;
@@ -95,7 +95,7 @@ void main()
 		}
 		if( client_input & 0x2 )	// back
 		{
-			player_speed -= ACCELERATION;
+			player_speed -= ACCELERATION * SECONDS_PER_TICK;
 			if( player_speed < 0.0f )
 			{
 				player_speed = 0.0f;
@@ -103,15 +103,15 @@ void main()
 		}
 		if( client_input & 0x4 )	// left
 		{
-			player_facing -= TURN_SPEED;
+			player_facing -= TURN_SPEED * SECONDS_PER_TICK;
 		}
 		if( client_input & 0x8 )	// right
 		{
-			player_facing += TURN_SPEED;
+			player_facing += TURN_SPEED * SECONDS_PER_TICK;
 		}
 
-		player_x += player_speed * sinf( player_facing );
-		player_y += player_speed * cosf( player_facing );
+		player_x += player_speed * SECONDS_PER_TICK * sinf( player_facing );
+		player_y += player_speed * SECONDS_PER_TICK * cosf( player_facing );
 		
 		// create state packet
 		int32 bytes_written = 0;
