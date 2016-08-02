@@ -5,9 +5,9 @@
 #include <winsock2.h>
 #include <windows.h> // windows.h must be included AFTER winsock2.h
 
-const float32 	TURN_SPEED = 0.01f;	// how fast player turns
-const float32 	ACCELERATION = 0.01f;
-const float32 	MAX_SPEED = 1.0f;
+const float32 	TURN_SPEED = 1.0f;	// how fast player turns
+const float32 	ACCELERATION = 20.0f;
+const float32 	MAX_SPEED = 50.0f;
 const uint32	TICKS_PER_SECOND = 60;
 const float32	SECONDS_PER_TICK = 1.0f / float32( TICKS_PER_SECOND );
 
