@@ -1,34 +1,83 @@
 ﻿using UnityEngine;
 using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
 public class Client : MonoBehaviour 
 {
 	public Transform playerObject;
+	public GameObject playerObjectPrefab;
 
 	private Socket socket;
 	private byte[] buffer;
 	private IPEndPoint serverEndPoint;
+	private UInt16 slot;
+	private List<Transform> playerObjectPool;
+	private bool inDestruction;
+
+	private enum ClientMessage : byte
+	{
+		Join,		// tell server we're new here
+		Leave,		// tell server we're leaving
+		Input 		// tell server our user input
+	};
+
+	private enum ServerMessage : byte
+	{
+		Join_Result,// tell client they're accepted/rejected
+		State 		// tell client game state
+	};
 
 	private void OnEnable()
 	{
 		Debug.Log("onenable");
 		this.socket = new Socket( AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp );
+		this.socket.Blocking = false;
 		this.buffer = new byte[sizeof(float) * 3];
 		this.serverEndPoint = new IPEndPoint( IPAddress.Loopback, 9999 );
+		this.slot = 0xFFFF;
+		this.playerObjectPool = new List<Transform>();
+		this.inDestruction = false;
+
+		this.buffer[0] = (byte)ClientMessage.Join;
+		this.socket.SendTo( this.buffer, 1, SocketFlags.None, this.serverEndPoint );
 	}
 
 	private void OnDisable()
 	{
 		Debug.Log("ondisable");
-		this.socket.Shutdown( SocketShutdown.Both );
+        this.buffer[0] = (byte)ClientMessage.Leave;
+        Array.Copy( BitConverter.GetBytes( this.slot ), 0, this.buffer, 1, sizeof( UInt16 ) );
+        this.socket.SendTo( this.buffer, this.serverEndPoint );
+        this.socket.Shutdown( SocketShutdown.Both );
+		this.socket.Close();
+		this.socket = null;
 		this.buffer = null;
 		this.serverEndPoint = null;
+
+		if( !this.inDestruction )
+		{
+			foreach( Transform t in this.playerObjectPool )
+			{
+				Destroy( t.gameObject );
+			}
+		}
+		this.playerObjectPool = null;
+	}
+
+	private void OnApplicationQuit()
+	{
+		this.inDestruction = true;
 	}
 
 	private void Update()
 	{
+		if( this.slot == 0xFFFF )
+		{
+			return;
+		}
+
 		// get input
 		byte input = 0;
 
@@ -50,26 +99,59 @@ public class Client : MonoBehaviour
 		}
 
 		// send to server
-		this.buffer[0] = input;
-		this.socket.SendTo( this.buffer, 1, SocketFlags.None, this.serverEndPoint );
+		this.buffer[0] = (byte)ClientMessage.Input;
+        Array.Copy( BitConverter.GetBytes(this.slot), 0, this.buffer, 1, sizeof( UInt16 ) );
+		this.buffer[3] = input;
+		this.socket.SendTo( this.buffer, 2, SocketFlags.None, this.serverEndPoint );
 
-		// wait for state packet
-		EndPoint remoteEP = new IPEndPoint( 0, 0 );
-		this.socket.ReceiveFrom( this.buffer, ref remoteEP );
+		// read state
+		int currentPlayerObject = 0;
+		while( this.socket.Available > 0 )
+		{
+			EndPoint remoteEP = new IPEndPoint( 0, 0 );
+			int packetSize = this.socket.ReceiveFrom( this.buffer, ref remoteEP );
 
-		// unpack game state
-		Vector3 playerPosition = new Vector3( 0.0f, 0.0f, 0.0f );
+			// unpack game state
+			int readIndex = 1;
+			while( readIndex < packetSize )
+			{
+				UInt16 ownerSlot = BitConverter.ToUInt16( this.buffer, readIndex );
+				readIndex += sizeof( UInt16 );
 
-		int readIndex = 0;
-		playerPosition.x = BitConverter.ToSingle( this.buffer, readIndex );
-		readIndex += sizeof( float );
+				Vector3 playerPosition = new Vector3( 0.0f, 0.0f, 0.0f );
 
-		playerPosition.z = BitConverter.ToSingle( this.buffer, readIndex );
-		readIndex += sizeof( float );
+				playerPosition.x = BitConverter.ToSingle( this.buffer, readIndex );
+				readIndex += sizeof( float );
 
-		float playerFacing = BitConverter.ToSingle( this.buffer, readIndex );
+				playerPosition.z = BitConverter.ToSingle( this.buffer, readIndex );
+				readIndex += sizeof( float );
 
-		this.playerObject.position = playerPosition;
-		this.playerObject.rotation = Quaternion.Euler( 0.0f, playerFacing * Mathf.Rad2Deg, 0.0f );
+				float playerFacing = BitConverter.ToSingle( this.buffer, readIndex );
+
+				Transform t = this.playerObject;
+				if( ownerSlot != this.slot )
+				{
+					if( currentPlayerObject < this.playerObjectPool.Count )
+					{
+						t = this.playerObjectPool[currentPlayerObject];
+						t.gameObject.SetActive( true );
+					}
+					else
+					{
+						t = ( GameObject.Instantiate( playerObjectPrefab ) as GameObject ).transform;
+						this.playerObjectPool.Add( t );
+					}
+					++currentPlayerObject;
+				}
+
+				t.position = playerPosition;
+				t.rotation = Quaternion.Euler( 0.0f, playerFacing * Mathf.Rad2Deg, 0.0f );
+			}
+		}
+
+		for(; currentPlayerObject < this.playerObjectPool.Count; ++currentPlayerObject)
+		{
+			this.playerObjectPool[currentPlayerObject].gameObject.SetActive( false );
+		}
 	}
 }
