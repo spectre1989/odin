@@ -11,6 +11,7 @@ const float32 	MAX_SPEED = 50.0f;
 const uint32	TICKS_PER_SECOND = 60;
 const float32	SECONDS_PER_TICK = 1.0f / float32( TICKS_PER_SECOND );
 const uint16	MAX_CLIENTS = 32;
+const float32	CLIENT_TIMEOUT = 5.0f;
 
 enum class Client_Message : uint8
 {
@@ -237,6 +238,13 @@ void main()
 
 				client_objects[i].x += client_objects[i].speed * SECONDS_PER_TICK * sinf( client_objects[i].facing );
 				client_objects[i].y += client_objects[i].speed * SECONDS_PER_TICK * cosf( client_objects[i].facing );
+
+				time_since_heard_from_clients[i] += SECONDS_PER_TICK;
+				if( time_since_heard_from_clients[i] > CLIENT_TIMEOUT )
+				{
+					printf( "client %u timed out\n", client_addresses[i] );
+					client_addresses[i] = 0;
+				}
 			}
 		}
 		
