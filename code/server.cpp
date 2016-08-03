@@ -76,8 +76,8 @@ void main()
 	}
 
 	// put socket in non-blocking mode
-	uint32 enabled = 1;
-	ioctslsocket( sock, FIONBIO, &enabled );
+	u_long enabled = 1;
+	ioctlsocket( sock, FIONBIO, &enabled );
 
 	UINT sleep_granularity_ms = 1;
 	bool32 sleep_granularity_was_set = timeBeginPeriod( sleep_granularity_ms ) == TIMERR_NOERROR;
@@ -113,7 +113,7 @@ void main()
 			if( bytes_received == SOCKET_ERROR )
 			{
 				int error = WSAGetLastError();
-				if( error != WSAWOULDBLOCK )
+				if( error != WSAEWOULDBLOCK )
 				{
 					printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", error );
 				}
@@ -121,10 +121,14 @@ void main()
 				break;
 			}
 
+			uint32 from_ip = from.sin_addr.S_un.S_addr;
+
 			switch( buffer[0] )
 			{
 				case Client_Message::Join:
 				{
+					printf( "Client_Message::Join from %u\n", from_ip );
+
 					uint16 slot = uint16( -1 );
 					for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 					{
@@ -134,28 +138,33 @@ void main()
 						}
 					}
 
-					buffer[0] = Server_Message::Join_Result;
+					buffer[0] = (int8)Server_Message::Join_Result;
 					if( slot != uint16( -1 ) )
 					{
-						slot[1] = 1;
+						buffer[1] = 1;
 						memcpy( &buffer[2], &slot, 2 );
 
 						flags = 0;
-						if( sendto( sock, buffer, 4, flags, from, from_size ) == SOCKET_ERROR )
+						if( sendto( sock, buffer, 4, flags, (SOCKADDR*)&from, from_size ) != SOCKET_ERROR )
+						{
+							client_addresses[slot] = from_ip;
+							time_since_heard_from_clients[slot] = 0.0f;
+							client_objects[slot] = {};
+							client_inputs[slot] = {};
+						}
+						else
 						{
 							printf( "sendto failed: %d", WSAGetLastError() );
-							return;
 						}
 					}
 					else
 					{
-						slot[1] = 0;
+						buffer[1] = 0;
 
 						flags = 0;
-						if( sendto( sock, buffer, 2, flags, from, from_size ) == SOCKET_ERROR )
+						if( sendto( sock, buffer, 2, flags, (SOCKADDR*)&from, from_size ) == SOCKET_ERROR )
 						{
 							printf( "sendto failed: %d", WSAGetLastError() );
-							return;
 						}
 					}
 				}
@@ -163,10 +172,12 @@ void main()
 
 				case Client_Message::Leave:
 				{
+					printf( "Client_Message::Leave from %u\n", from_ip );
+
 					uint16 slot;
 					memcpy( &slot, &buffer[1], 2 );
 
-					if( client_addresses[slot] == from.something )
+					if( client_addresses[slot] == from_ip )
 					{
 						client_addresses[slot] = 0;
 					}
@@ -174,63 +185,102 @@ void main()
 				break;
 
 				case Client_Message::Input:
+					printf( "Client_Message::Input from %u\n", from_ip );
+
+					uint16 slot;
+					memcpy( &slot, &buffer[1], 2 );
+
+					if( client_addresses[slot] == from_ip )
+					{
+						uint8 input = buffer[3];
+
+						client_inputs[slot].up = input & 0x1;
+						client_inputs[slot].down = input & 0x2;
+						client_inputs[slot].left = input & 0x4;
+						client_inputs[slot].right = input & 0x8;
+
+						time_since_heard_from_clients[slot] = 0.0f;
+					}
 				break;
 			}
 		}
 		
 		// process input and update state
-		int8 client_input = buffer[0];
-		printf( "%d.%d.%d.%d:%d - %d\n", from.sin_addr.S_un.S_un_b.s_b1, from.sin_addr.S_un.S_un_b.s_b2, from.sin_addr.S_un.S_un_b.s_b3, from.sin_addr.S_un.S_un_b.s_b4, ntohs( from.sin_port ), client_input );
-
-		if( client_input & 0x1 )	// forward
+		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 		{
-			player_speed += ACCELERATION * SECONDS_PER_TICK;
-			if( player_speed > MAX_SPEED )
+			if( client_addresses[i] )
 			{
-				player_speed = MAX_SPEED;
+				if( client_inputs[i].up )
+				{
+					client_objects[i].speed += ACCELERATION * SECONDS_PER_TICK;
+					if( client_objects[i].speed > MAX_SPEED )
+					{
+						client_objects[i].speed = MAX_SPEED;
+					}
+				}
+				if( client_inputs[i].down )
+				{
+					client_objects[i].speed -= ACCELERATION * SECONDS_PER_TICK;
+					if( client_objects[i].speed < 0.0f )
+					{
+						client_objects[i].speed = 0.0f;
+					}
+				}
+				if( client_inputs[i].left )
+				{
+					client_objects[i].facing -= TURN_SPEED * SECONDS_PER_TICK;
+				}
+				if( client_inputs[i].right )
+				{
+					client_objects[i].facing += TURN_SPEED * SECONDS_PER_TICK;
+				}
+
+				client_objects[i].x += client_objects[i].speed * SECONDS_PER_TICK * sinf( client_objects[i].facing );
+				client_objects[i].y += client_objects[i].speed * SECONDS_PER_TICK * cosf( client_objects[i].facing );
 			}
 		}
-		if( client_input & 0x2 )	// back
-		{
-			player_speed -= ACCELERATION * SECONDS_PER_TICK;
-			if( player_speed < 0.0f )
-			{
-				player_speed = 0.0f;
-			}
-		}
-		if( client_input & 0x4 )	// left
-		{
-			player_facing -= TURN_SPEED * SECONDS_PER_TICK;
-		}
-		if( client_input & 0x8 )	// right
-		{
-			player_facing += TURN_SPEED * SECONDS_PER_TICK;
-		}
-
-		player_x += player_speed * SECONDS_PER_TICK * sinf( player_facing );
-		player_y += player_speed * SECONDS_PER_TICK * cosf( player_facing );
 		
 		// create state packet
 		int32 bytes_written = 0;
-		memcpy( &buffer[bytes_written], &player_x, sizeof( player_x ) );
-		bytes_written += sizeof( player_x );
-
-		memcpy( &buffer[bytes_written], &player_y, sizeof( player_y ) );
-		bytes_written += sizeof( player_y );
-
-		memcpy( &buffer[bytes_written], &player_facing, sizeof( player_facing ) );
-		bytes_written += sizeof( player_facing );
-
-		// send back to client
-		flags = 0;
-		SOCKADDR* to = (SOCKADDR*)&from;
-		int to_length = sizeof( from );
-		if( sendto( sock, buffer, bytes_written, flags, to, to_length ) == SOCKET_ERROR )
+		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 		{
-			printf( "sendto failed: %d", WSAGetLastError() );
-			return;
+			if( client_addresses[i] )
+			{
+				memcpy( &buffer[bytes_written], &i, sizeof( i ) );
+				bytes_written += sizeof( i );
+
+				memcpy( &buffer[bytes_written], &client_objects[i].x, sizeof( client_objects[i].x ) );
+				bytes_written += sizeof( client_objects[i].x );
+
+				memcpy( &buffer[bytes_written], &client_objects[i].y, sizeof( client_objects[i].y ) );
+				bytes_written += sizeof( client_objects[i].y );
+
+				memcpy( &buffer[bytes_written], &client_objects[i].facing, sizeof( client_objects[i].facing ) );
+				bytes_written += sizeof( client_objects[i].facing );
+			}
 		}
 
+		// send back to clients
+		int flags = 0;
+		SOCKADDR_IN to;
+		to.sin_family = AF_INET;
+		to.sin_port = htons( PORT );
+		int to_length = sizeof( to );
+
+		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
+		{
+			if( client_addresses[i] )
+			{
+				to.sin_addr.S_un.S_addr = client_addresses[i];
+
+				if( sendto( sock, buffer, bytes_written, flags, (SOCKADDR*)&to, to_length ) == SOCKET_ERROR )
+				{
+					printf( "sendto failed: %d\n", WSAGetLastError() );
+				}
+			}
+		}
+
+		// wait until tick complete
 		float32 time_taken_s = time_since( tick_start_time, clock_frequency );
 
 		while( time_taken_s < SECONDS_PER_TICK )
