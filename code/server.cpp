@@ -26,6 +26,13 @@ enum class Server_Message : uint8
 	State 		// tell client game state
 };
 
+struct IP_Endpoint
+{
+	uint32 address;
+	uint16 port;
+};
+bool operator==( const IP_Endpoint& a, const IP_Endpoint& b ) { return a.address == b.address && a.port == b.port; }
+
 struct Player_State
 {
 	float32 x, y, facing, speed;
@@ -50,7 +57,7 @@ void main()
 	WSADATA winsock_data;
 	if( WSAStartup( winsock_version, &winsock_data ) )
 	{
-		printf( "WSAStartup failed: %d", WSAGetLastError() );
+		printf( "WSAStartup failed: %d\n", WSAGetLastError() );
 		return;
 	}
 
@@ -62,7 +69,7 @@ void main()
 
 	if( sock == INVALID_SOCKET )
 	{
-		printf( "socket failed: %d", WSAGetLastError() );
+		printf( "socket failed: %d\n", WSAGetLastError() );
 		return;
 	}
 
@@ -72,7 +79,7 @@ void main()
 	local_address.sin_addr.s_addr = INADDR_ANY;
 	if( bind( sock, (SOCKADDR*)&local_address, sizeof( local_address ) ) == SOCKET_ERROR )
 	{
-		printf( "bind failed: %d", WSAGetLastError() );
+		printf( "bind failed: %d\n", WSAGetLastError() );
 		return;
 	}
 
@@ -87,14 +94,14 @@ void main()
 	QueryPerformanceFrequency( &clock_frequency );
 
 	int8 buffer[SOCKET_BUFFER_SIZE];
-	uint32 client_addresses[MAX_CLIENTS];
+	IP_Endpoint client_endpoints[MAX_CLIENTS];
 	float32 time_since_heard_from_clients[MAX_CLIENTS];
 	Player_State client_objects[MAX_CLIENTS];
 	Player_Input client_inputs[MAX_CLIENTS];
 
 	for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 	{
-		client_addresses[i] = 0;
+		client_endpoints[i] = {};
 	}
 
 	bool32 is_running = 1;
@@ -116,56 +123,61 @@ void main()
 				int error = WSAGetLastError();
 				if( error != WSAEWOULDBLOCK )
 				{
-					printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d", error );
+					printf( "recvfrom returned SOCKET_ERROR, WSAGetLastError() %d\n", error );
 				}
 				
 				break;
 			}
 
-			uint32 from_ip = from.sin_addr.S_un.S_addr;
+			IP_Endpoint from_endpoint;
+			from_endpoint.address = from.sin_addr.S_un.S_addr;
+			from_endpoint.port = from.sin_port;
 
 			switch( buffer[0] )
 			{
 				case Client_Message::Join:
 				{
-					printf( "Client_Message::Join from %u\n", from_ip );
+					printf( "Client_Message::Join from %u:%hu\n", from_endpoint.address, from_endpoint.port );
 
 					uint16 slot = uint16( -1 );
 					for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 					{
-						if( client_addresses[i] == 0 )
+						if( client_endpoints[i].address == 0 )
 						{
 							slot = i;
+							break;
 						}
 					}
 
 					buffer[0] = (int8)Server_Message::Join_Result;
 					if( slot != uint16( -1 ) )
 					{
+						printf( "client will be assigned to slot %hu\n", slot );
 						buffer[1] = 1;
 						memcpy( &buffer[2], &slot, 2 );
 
 						flags = 0;
 						if( sendto( sock, buffer, 4, flags, (SOCKADDR*)&from, from_size ) != SOCKET_ERROR )
 						{
-							client_addresses[slot] = from_ip;
+							client_endpoints[slot] = from_endpoint;
 							time_since_heard_from_clients[slot] = 0.0f;
 							client_objects[slot] = {};
 							client_inputs[slot] = {};
 						}
 						else
 						{
-							printf( "sendto failed: %d", WSAGetLastError() );
+							printf( "sendto failed: %d\n", WSAGetLastError() );
 						}
 					}
 					else
 					{
+						printf( "could not find a slot for player\n" );
 						buffer[1] = 0;
 
 						flags = 0;
 						if( sendto( sock, buffer, 2, flags, (SOCKADDR*)&from, from_size ) == SOCKET_ERROR )
 						{
-							printf( "sendto failed: %d", WSAGetLastError() );
+							printf( "sendto failed: %d\n", WSAGetLastError() );
 						}
 					}
 				}
@@ -173,25 +185,25 @@ void main()
 
 				case Client_Message::Leave:
 				{
-					printf( "Client_Message::Leave from %u\n", from_ip );
-
 					uint16 slot;
 					memcpy( &slot, &buffer[1], 2 );
 
-					if( client_addresses[slot] == from_ip )
+					if( client_endpoints[slot] == from_endpoint )
 					{
-						client_addresses[slot] = 0;
+						client_endpoints[slot] = {};
+						printf( "Client_Message::Leave from %hu(%u:%hu)\n", slot, from_endpoint.address, from_endpoint.port );
 					}
 				}
 				break;
 
 				case Client_Message::Input:
-					printf( "Client_Message::Input from %u\n", from_ip );
-
+				{
 					uint16 slot;
 					memcpy( &slot, &buffer[1], 2 );
 
-					if( client_addresses[slot] == from_ip )
+					printf( "%d %hu\n", bytes_received, slot );
+
+					if( client_endpoints[slot] == from_endpoint )
 					{
 						uint8 input = buffer[3];
 
@@ -201,7 +213,14 @@ void main()
 						client_inputs[slot].right = input & 0x8;
 
 						time_since_heard_from_clients[slot] = 0.0f;
+
+						printf( "Client_Message::Input from %hu:%d\n", slot, int32( input ) );
 					}
+					else
+					{
+						printf( "Client_Message::Input discarded, was from %u:%hu but expected %u:%hu\n", from_endpoint.address, from_endpoint.port, client_endpoints[slot].address, client_endpoints[slot].port );
+					}
+				}
 				break;
 			}
 		}
@@ -209,7 +228,7 @@ void main()
 		// process input and update state
 		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 		{
-			if( client_addresses[i] )
+			if( client_endpoints[i].address )
 			{
 				if( client_inputs[i].up )
 				{
@@ -242,17 +261,18 @@ void main()
 				time_since_heard_from_clients[i] += SECONDS_PER_TICK;
 				if( time_since_heard_from_clients[i] > CLIENT_TIMEOUT )
 				{
-					printf( "client %u timed out\n", client_addresses[i] );
-					client_addresses[i] = 0;
+					printf( "client %hu timed out\n", i );
+					client_endpoints[i] = {};
 				}
 			}
 		}
 		
 		// create state packet
-		int32 bytes_written = 0;
+		buffer[0] = (int8)Server_Message::State;
+		int32 bytes_written = 1;
 		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 		{
-			if( client_addresses[i] )
+			if( client_endpoints[i].address )
 			{
 				memcpy( &buffer[bytes_written], &i, sizeof( i ) );
 				bytes_written += sizeof( i );
@@ -277,9 +297,10 @@ void main()
 
 		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
 		{
-			if( client_addresses[i] )
+			if( client_endpoints[i].address )
 			{
-				to.sin_addr.S_un.S_addr = client_addresses[i];
+				to.sin_addr.S_un.S_addr = client_endpoints[i].address;
+				to.sin_port = client_endpoints[i].port;
 
 				if( sendto( sock, buffer, bytes_written, flags, (SOCKADDR*)&to, to_length ) == SOCKET_ERROR )
 				{

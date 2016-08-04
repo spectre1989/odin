@@ -25,16 +25,15 @@ public class Client : MonoBehaviour
 
 	private enum ServerMessage : byte
 	{
-		Join_Result,// tell client they're accepted/rejected
+		JoinResult, // tell client they're accepted/rejected
 		State 		// tell client game state
 	};
 
 	private void OnEnable()
 	{
-		Debug.Log("onenable");
 		this.socket = new Socket( AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp );
 		this.socket.Blocking = false;
-		this.buffer = new byte[sizeof(float) * 3];
+		this.buffer = new byte[1024];
 		this.serverEndPoint = new IPEndPoint( IPAddress.Loopback, 9999 );
 		this.slot = 0xFFFF;
 		this.playerObjectPool = new List<Transform>();
@@ -46,9 +45,12 @@ public class Client : MonoBehaviour
 
 	private void OnDisable()
 	{
-		Debug.Log("ondisable");
-        this.buffer[0] = (byte)ClientMessage.Leave;
-        Array.Copy( BitConverter.GetBytes( this.slot ), 0, this.buffer, 1, sizeof( UInt16 ) );
+		if( this.slot != 0xFFFF )
+		{
+			this.buffer[0] = (byte)ClientMessage.Leave;
+        	Array.Copy( BitConverter.GetBytes( this.slot ), 0, this.buffer, 1, sizeof( UInt16 ) );
+		}
+ 		
         this.socket.SendTo( this.buffer, this.serverEndPoint );
         this.socket.Shutdown( SocketShutdown.Both );
 		this.socket.Close();
@@ -75,7 +77,31 @@ public class Client : MonoBehaviour
 	{
 		if( this.slot == 0xFFFF )
 		{
-			return;
+			while( this.socket.Available > 0 )
+			{
+				EndPoint remoteEP = new IPEndPoint( 0, 0 );
+				this.socket.ReceiveFrom( this.buffer, ref remoteEP );
+
+				if( this.buffer[0] == (byte)ServerMessage.JoinResult )
+				{
+					if( this.buffer[1] != 0 )
+					{
+						this.slot = BitConverter.ToUInt16( this.buffer, 2 );
+						Debug.Log( "server assigned us slot " + this.slot.ToString() );
+						break;
+					}
+					else
+					{
+						Debug.Log( "server didn't let us in" );
+						break;
+					}
+				}
+			}
+
+			if( this.slot == 0xFFFF )
+			{
+				return;
+			}
 		}
 
 		// get input
@@ -102,10 +128,9 @@ public class Client : MonoBehaviour
 		this.buffer[0] = (byte)ClientMessage.Input;
         Array.Copy( BitConverter.GetBytes(this.slot), 0, this.buffer, 1, sizeof( UInt16 ) );
 		this.buffer[3] = input;
-		this.socket.SendTo( this.buffer, 2, SocketFlags.None, this.serverEndPoint );
+		this.socket.SendTo( this.buffer, 4, SocketFlags.None, this.serverEndPoint );
 
 		// read state
-		int currentPlayerObject = 0;
 		while( this.socket.Available > 0 )
 		{
 			EndPoint remoteEP = new IPEndPoint( 0, 0 );
@@ -113,6 +138,7 @@ public class Client : MonoBehaviour
 
 			// unpack game state
 			int readIndex = 1;
+            int currentPlayerObject = 0;
 			while( readIndex < packetSize )
 			{
 				UInt16 ownerSlot = BitConverter.ToUInt16( this.buffer, readIndex );
@@ -127,6 +153,7 @@ public class Client : MonoBehaviour
 				readIndex += sizeof( float );
 
 				float playerFacing = BitConverter.ToSingle( this.buffer, readIndex );
+                readIndex += sizeof( float );
 
 				Transform t = this.playerObject;
 				if( ownerSlot != this.slot )
@@ -147,11 +174,11 @@ public class Client : MonoBehaviour
 				t.position = playerPosition;
 				t.rotation = Quaternion.Euler( 0.0f, playerFacing * Mathf.Rad2Deg, 0.0f );
 			}
-		}
 
-		for(; currentPlayerObject < this.playerObjectPool.Count; ++currentPlayerObject)
-		{
-			this.playerObjectPool[currentPlayerObject].gameObject.SetActive( false );
-		}
+            for(; currentPlayerObject < this.playerObjectPool.Count; ++currentPlayerObject)
+            {
+                this.playerObjectPool[currentPlayerObject].gameObject.SetActive(false);
+            }
+        }
 	}
 }
