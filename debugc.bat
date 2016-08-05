@@ -1,0 +1,1 @@
+devenv build\client.exe
