@@ -14,6 +14,6 @@ cd build
 :: WX - treat warnings as errors
 :: OPT:REF - eliminate functions which are never referenced
 :: SUBSYSTEM - environment for executable
-cl /nologo /MTd /Z7 /Gm- /GR- /EHs- /EHa- /Od /Oi /FC /W4 /WX ..\code\client.cpp /link /OPT:REF /SUBSYSTEM:WINDOWS,5.2
+cl /nologo /MTd /Z7 /Gm- /GR- /EHs- /EHa- /Od /Oi /FC /W4 /WX ..\code\client.cpp /link /OPT:REF /SUBSYSTEM:WINDOWS,5.2 User32.lib
 
 cd ..
