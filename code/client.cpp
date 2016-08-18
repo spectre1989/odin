@@ -1,3 +1,4 @@
+#include <vulkan\vulkan.h>
 #include <windows.h>
 
 typedef int bool32;
@@ -58,6 +59,23 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	ShowWindow( window_handle, cmd_show );
+
+
+	VkApplicationInfo app_info = {};
+	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	app_info.apiVersion = VK_API_VERSION_1_0;
+
+	VkInstanceCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	create_info.pApplicationInfo = &app_info;
+	create_info.enabledLayerCount = 0; // todo( jbr )
+	create_info.enabledExtensionCount = 0; // todo( jbr )
+	create_info.ppEnabledExtensionNames = 0; // todo( jbr )
+
+	VkInstance vulkan_instance;
+	VkResult result = vkCreateInstance( &create_info, 0, &vulkan_instance );
+	assert( result == VK_SUCCESS );
+
 
 	g_is_running = 1;
 	while( g_is_running )
