@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <vulkan\vulkan.h>
 #include <windows.h>
 
@@ -8,6 +9,20 @@ static bool32 g_is_running;
 #ifndef RELEASE
 #define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
 #endif
+
+// the return value indicates whether the calling layer should abort the vulkan call
+static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/, 
+										VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
+										size_t /*location*/, int32_t /*code*/, 
+										const char* layerPrefix, const char* msg, void* /*userData*/) 
+{
+	// todo( jbr ) logging system
+	char buffer[512];
+	snprintf( buffer, 512, "Vulkan:[%s]%s\n", layerPrefix, msg );
+	OutputDebugStringA( buffer );
+
+    return VK_FALSE;
+}
 
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
 {
@@ -65,16 +80,36 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	app_info.apiVersion = VK_API_VERSION_1_0;
 
-	VkInstanceCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	create_info.pApplicationInfo = &app_info;
-	create_info.enabledLayerCount = 0; // todo( jbr )
-	create_info.enabledExtensionCount = 0; // todo( jbr )
-	create_info.ppEnabledExtensionNames = 0; // todo( jbr )
+	VkInstance vulkan_instance; // todo( jbr ) custom allocator
+	{
+		VkInstanceCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+		create_info.pApplicationInfo = &app_info;
+		#ifndef RELEASE
+		create_info.enabledLayerCount = 1;
+		const char* validation_layers[] = {"VK_LAYER_LUNARG_standard_validation"};
+		create_info.ppEnabledLayerNames = validation_layers;
+		#endif
+		create_info.enabledExtensionCount = 0; // todo( jbr )
+		create_info.ppEnabledExtensionNames = 0; // todo( jbr )
+		
+		VkResult result = vkCreateInstance( &create_info, 0, &vulkan_instance );
+		assert( result == VK_SUCCESS );
+	}
 
-	VkInstance vulkan_instance;
-	VkResult result = vkCreateInstance( &create_info, 0, &vulkan_instance );
-	assert( result == VK_SUCCESS );
+	VkDebugReportCallbackEXT debug_callback;
+	{
+		VkDebugReportCallbackCreateInfoEXT create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+		create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+		create_info.pfnCallback = vulkan_debug_callback;
+
+		auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
+		assert( vkCreateDebugReportCallbackEXT );
+
+		VkResult result = vkCreateDebugReportCallbackEXT( vulkan_instance, &create_info, 0, &debug_callback );
+		assert( result == VK_SUCCESS );
+	}
 
 
 	g_is_running = 1;

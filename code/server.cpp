@@ -292,7 +292,6 @@ void main()
 		int flags = 0;
 		SOCKADDR_IN to;
 		to.sin_family = AF_INET;
-		to.sin_port = htons( PORT );
 		int to_length = sizeof( to );
 
 		for( uint16 i = 0; i < MAX_CLIENTS; ++i )
