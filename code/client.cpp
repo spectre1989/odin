@@ -90,8 +90,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		const char* validation_layers[] = {"VK_LAYER_LUNARG_standard_validation"};
 		create_info.ppEnabledLayerNames = validation_layers;
 		#endif
-		create_info.enabledExtensionCount = 0; // todo( jbr )
-		create_info.ppEnabledExtensionNames = 0; // todo( jbr )
+		const char* extensions[] = {VK_EXT_DEBUG_REPORT_EXTENSION_NAME};
+		create_info.enabledExtensionCount = sizeof( extensions ) / sizeof( extensions[0] );
+		create_info.ppEnabledExtensionNames = extensions;
 		
 		VkResult result = vkCreateInstance( &create_info, 0, &vulkan_instance );
 		assert( result == VK_SUCCESS );
