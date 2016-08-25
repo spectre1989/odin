@@ -18,7 +18,7 @@ static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/,
 {
 	// todo( jbr ) logging system
 	char buffer[512];
-	snprintf( buffer, 512, "Vulkan:[%s]%s\n", layerPrefix, msg );
+	snprintf( buffer, sizeof( buffer ), "Vulkan:[%s]%s\n", layerPrefix, msg );
 	OutputDebugStringA( buffer );
 
     return VK_FALSE;
@@ -112,6 +112,44 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert( result == VK_SUCCESS );
 	}
 
+	uint32_t physical_device_count;
+	{
+		VkResult result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, 0 );
+		assert( result == VK_SUCCESS );
+		assert( physical_device_count > 0 );
+	}
+
+	VkPhysicalDevice physical_device = 0:
+	{
+		// todo( jbr ) custom memory allocator
+		VkPhysicalDevice* physical_devices = new VkPhysicalDevice[physical_device_count];
+
+		VkResult result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
+		assert( result == VK_SUCCESS );
+
+		for( uint32_t i = 0; i < physical_device_count; ++i )
+		{
+			VkPhysicalDeviceProperties device_properties;
+			//VkPhysicalDeviceFeatures device_features; TODO( jbr ) pick best device based on type and features
+
+			vkGetPhysicalDeviceProperties( physical_devices[i], &device_properties );
+			//vkGetPhysicalDeviceFeatures( physical_devices[i], &device_features );
+
+			// for now just try to pick a discrete gpu, otherwise anything
+			if( device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU )
+			{
+				physical_device = physical_devices[i];
+				break;
+			}
+		}
+
+		if( !physical_device )
+		{
+			physical_device = physical_devices[0];
+		}
+
+		delete[] physical_devices;
+	}
 
 	g_is_running = 1;
 	while( g_is_running )
