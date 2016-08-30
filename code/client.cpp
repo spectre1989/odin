@@ -119,7 +119,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert( physical_device_count > 0 );
 	}
 
-	VkPhysicalDevice physical_device = 0:
+	VkPhysicalDevice physical_device = 0;
 	{
 		// todo( jbr ) custom memory allocator
 		VkPhysicalDevice* physical_devices = new VkPhysicalDevice[physical_device_count];
@@ -149,6 +149,12 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 
 		delete[] physical_devices;
+	}
+
+	VkDevice logical_device = 0;
+	{
+		VkDeviceQueueCreateInfo device_queue_create_info = {};
+		device_queue_create_info
 	}
 
 	g_is_running = 1;
