@@ -5,6 +5,7 @@
 typedef int bool32;
 
 static bool32 g_is_running;
+static FILE* g_log_file;
 
 #ifndef RELEASE
 #define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
@@ -17,9 +18,12 @@ static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/,
 										const char* layerPrefix, const char* msg, void* /*userData*/) 
 {
 	// todo( jbr ) logging system
-	char buffer[512];
-	snprintf( buffer, sizeof( buffer ), "Vulkan:[%s]%s\n", layerPrefix, msg );
-	OutputDebugStringA( buffer );
+	if( !g_log_file )
+	{
+		g_log_file = fopen( "log.txt", "w" );
+	}
+
+	fprintf( g_log_file, "Vulkan:[%s]%s\n", layerPrefix, msg );
 
     return VK_FALSE;
 }
@@ -153,8 +157,25 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	VkDevice logical_device = 0;
 	{
+		// todo( jbr ) custom memory allocator
+		uint32_t queue_family_count;
+		{
+			VkResult result = vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
+			assert( result == VK_SUCCESS );
+		}
+
+		VkQueueFamilyProperties* queue_families = new VkQueueFamilyProperties[queue_family_count];
+
+		VkResult result = vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
+		assert( result == VK_SUCCESS );
+
+		
+
+		delete[] queue_families;
+
 		VkDeviceQueueCreateInfo device_queue_create_info = {};
-		device_queue_create_info
+		device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		device_queue_create_info.
 	}
 
 	g_is_running = 1;
