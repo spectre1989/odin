@@ -2,6 +2,8 @@
 #include <vulkan\vulkan.h>
 #include <windows.h>
 
+#include "odin.h"
+
 typedef int bool32;
 
 static bool32 g_is_running;
@@ -20,7 +22,8 @@ static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/,
 	// todo( jbr ) logging system
 	if( !g_log_file )
 	{
-		g_log_file = fopen( "log.txt", "w" );
+		errno_t error = fopen_s( &g_log_file, "log.txt", "w" );
+		assert( !error );
 	}
 
 	fprintf( g_log_file, "Vulkan:[%s]%s\n", layerPrefix, msg );
@@ -80,58 +83,53 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	ShowWindow( window_handle, cmd_show );
 
 
-	VkApplicationInfo app_info = {};
-	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	app_info.apiVersion = VK_API_VERSION_1_0;
-
 	VkInstance vulkan_instance; // todo( jbr ) custom allocator
+	VkDevice device;
 	{
-		VkInstanceCreateInfo create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		create_info.pApplicationInfo = &app_info;
+		VkApplicationInfo app_info = {};
+		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+		app_info.apiVersion = VK_API_VERSION_1_0;
+
+		VkInstanceCreateInfo instance_create_info = {};
+		instance_create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+		instance_create_info.pApplicationInfo = &app_info;
 		#ifndef RELEASE
-		create_info.enabledLayerCount = 1;
+		instance_create_info.enabledLayerCount = 1;
 		const char* validation_layers[] = {"VK_LAYER_LUNARG_standard_validation"};
-		create_info.ppEnabledLayerNames = validation_layers;
+		instance_create_info.ppEnabledLayerNames = validation_layers;
 		#endif
 		const char* extensions[] = {VK_EXT_DEBUG_REPORT_EXTENSION_NAME};
-		create_info.enabledExtensionCount = sizeof( extensions ) / sizeof( extensions[0] );
-		create_info.ppEnabledExtensionNames = extensions;
+		instance_create_info.enabledExtensionCount = sizeof( extensions ) / sizeof( extensions[0] );
+		instance_create_info.ppEnabledExtensionNames = extensions;
 		
-		VkResult result = vkCreateInstance( &create_info, 0, &vulkan_instance );
+		VkResult result = vkCreateInstance( &instance_create_info, 0, &vulkan_instance );
 		assert( result == VK_SUCCESS );
-	}
 
-	VkDebugReportCallbackEXT debug_callback;
-	{
-		VkDebugReportCallbackCreateInfoEXT create_info = {};
-		create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
-		create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
-		create_info.pfnCallback = vulkan_debug_callback;
+		VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
+		debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+		debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
+		debug_callback_create_info.pfnCallback = vulkan_debug_callback;
 
 		auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
 		assert( vkCreateDebugReportCallbackEXT );
 
-		VkResult result = vkCreateDebugReportCallbackEXT( vulkan_instance, &create_info, 0, &debug_callback );
+		VkDebugReportCallbackEXT debug_callback;
+		result = vkCreateDebugReportCallbackEXT( vulkan_instance, &debug_callback_create_info, 0, &debug_callback );
 		assert( result == VK_SUCCESS );
-	}
 
-	uint32_t physical_device_count;
-	{
-		VkResult result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, 0 );
+		uint32 physical_device_count;
+		result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, 0 );
 		assert( result == VK_SUCCESS );
 		assert( physical_device_count > 0 );
-	}
-
-	VkPhysicalDevice physical_device = 0;
-	{
+		
 		// todo( jbr ) custom memory allocator
 		VkPhysicalDevice* physical_devices = new VkPhysicalDevice[physical_device_count];
 
-		VkResult result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
+		result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
 		assert( result == VK_SUCCESS );
 
-		for( uint32_t i = 0; i < physical_device_count; ++i )
+		VkPhysicalDevice physical_device = 0;
+		for( uint32 i = 0; i < physical_device_count; ++i )
 		{
 			VkPhysicalDeviceProperties device_properties;
 			//VkPhysicalDeviceFeatures device_features; TODO( jbr ) pick best device based on type and features
@@ -153,29 +151,48 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 
 		delete[] physical_devices;
-	}
-
-	VkDevice logical_device = 0;
-	{
+	
 		// todo( jbr ) custom memory allocator
-		uint32_t queue_family_count;
-		{
-			VkResult result = vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
-			assert( result == VK_SUCCESS );
-		}
+		uint32 queue_family_count;
+		vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
+		assert( queue_family_count > 0 );
 
 		VkQueueFamilyProperties* queue_families = new VkQueueFamilyProperties[queue_family_count];
 
-		VkResult result = vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
-		assert( result == VK_SUCCESS );
+		vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
 
-		
+		uint32 graphics_queue_family_index = uint32( -1 );
+		for( uint32 i = 0; i < queue_family_count; ++i )
+		{
+			if( queue_families[i].queueCount > 0 && queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
+			{
+				graphics_queue_family_index = i;
+				break;
+			}
+		}
+		float32 queue_priority = 1.0f;
+
+		assert( graphics_queue_family_index != uint32_t( -1 ) );
 
 		delete[] queue_families;
 
 		VkDeviceQueueCreateInfo device_queue_create_info = {};
 		device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		device_queue_create_info.
+		device_queue_create_info.queueFamilyIndex = graphics_queue_family_index;
+		device_queue_create_info.queueCount = 1;
+		device_queue_create_info.pQueuePriorities = &queue_priority;
+
+		VkPhysicalDeviceFeatures device_features = {};
+
+		VkDeviceCreateInfo device_create_info = {};
+		device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		device_create_info.queueCreateInfoCount = 1;
+		device_create_info.pQueueCreateInfos = &device_queue_create_info;
+		device_create_info.pEnabledFeatures = &device_features;
+
+		result = vkCreateDevice( physical_device, &device_create_info, 0, &device );
+		assert( result == VK_SUCCESS );
+		MessageBoxA(0, "success", "", MB_OK);
 	}
 
 	g_is_running = 1;
