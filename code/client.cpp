@@ -1,4 +1,5 @@
 #include <stdio.h>
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan\vulkan.h>
 #include <windows.h>
 
@@ -85,6 +86,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	VkInstance vulkan_instance; // todo( jbr ) custom allocator
 	VkDevice device;
+	VkSurfaceKHR surface;
 	{
 		VkApplicationInfo app_info = {};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -98,9 +100,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		const char* validation_layers[] = {"VK_LAYER_LUNARG_standard_validation"};
 		instance_create_info.ppEnabledLayerNames = validation_layers;
 		#endif
-		const char* extensions[] = {VK_EXT_DEBUG_REPORT_EXTENSION_NAME};
-		instance_create_info.enabledExtensionCount = sizeof( extensions ) / sizeof( extensions[0] );
-		instance_create_info.ppEnabledExtensionNames = extensions;
+		const char* enabled_extension_names[] = {VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
+		instance_create_info.enabledExtensionCount = sizeof( enabled_extension_names ) / sizeof( enabled_extension_names[0] );
+		instance_create_info.ppEnabledExtensionNames = enabled_extension_names;
 		
 		VkResult result = vkCreateInstance( &instance_create_info, 0, &vulkan_instance );
 		assert( result == VK_SUCCESS );
@@ -110,11 +112,22 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 		debug_callback_create_info.pfnCallback = vulkan_debug_callback;
 
-		auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
+		PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
 		assert( vkCreateDebugReportCallbackEXT );
 
 		VkDebugReportCallbackEXT debug_callback;
 		result = vkCreateDebugReportCallbackEXT( vulkan_instance, &debug_callback_create_info, 0, &debug_callback );
+		assert( result == VK_SUCCESS );
+
+		VkWin32SurfaceCreateInfoKHR surface_create_info = {};
+		surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surface_create_info.hwnd = window_handle;
+		surface_create_info.hinstance = instance;
+
+		PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr( vulkan_instance, "vkCreateWin32SurfaceKHR" );
+		assert( vkCreateWin32SurfaceKHR );
+
+		result = vkCreateWin32SurfaceKHR( vulkan_instance, &surface_create_info, 0, &surface );
 		assert( result == VK_SUCCESS );
 
 		uint32 physical_device_count;
@@ -140,8 +153,25 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			// for now just try to pick a discrete gpu, otherwise anything
 			if( device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU )
 			{
-				physical_device = physical_devices[i];
-				break;
+				uint32 extension_count;
+				result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, 0 );
+				assert( result == VK_SUCCESS );
+
+				// todo( jbr ) custom memory allocator
+				VkExtensionProperties* device_extensions = new VkExtensionProperties[extension_count];
+				result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, device_extensions );
+				assert( result == VK_SUCCESS );
+
+				for( uint32 j = 0; j < extension_count; ++j )
+				{
+					if( strcmp( device_extensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME ) == 0 )
+					{
+						physical_device = physical_devices[i];
+						break;
+					}
+				}
+				
+				delete[] device_extensions;
 			}
 		}
 
@@ -152,49 +182,89 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		delete[] physical_devices;
 	
-		// todo( jbr ) custom memory allocator
 		uint32 queue_family_count;
 		vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
 		assert( queue_family_count > 0 );
 
+		// todo( jbr ) custom memory allocator
 		VkQueueFamilyProperties* queue_families = new VkQueueFamilyProperties[queue_family_count];
 
 		vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
 
 		uint32 graphics_queue_family_index = uint32( -1 );
+		uint32 present_queue_family_index = uint32( -1 );
 		for( uint32 i = 0; i < queue_family_count; ++i )
 		{
-			if( queue_families[i].queueCount > 0 && queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
+			if( queue_families[i].queueCount > 0 )
 			{
-				graphics_queue_family_index = i;
-				break;
+				if( queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
+				{
+					graphics_queue_family_index = i;
+				}
+
+				VkBool32 present_support = false;
+				result = vkGetPhysicalDeviceSurfaceSupportKHR( physical_device, i, surface, &present_support );
+				assert( result == VK_SUCCESS );
+				if( present_support )
+				{
+					present_queue_family_index = i;
+				}
+
+				if( graphics_queue_family_index != uint32( -1 ) && present_queue_family_index != uint32( -1 ) )
+				{
+					break;
+				}
 			}
 		}
 		float32 queue_priority = 1.0f;
 
-		assert( graphics_queue_family_index != uint32_t( -1 ) );
+		assert( graphics_queue_family_index != uint32( -1 ) );
+		assert( present_queue_family_index != uint32( -1 ) );
 
 		delete[] queue_families;
 
-		VkDeviceQueueCreateInfo device_queue_create_info = {};
-		device_queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		device_queue_create_info.queueFamilyIndex = graphics_queue_family_index;
-		device_queue_create_info.queueCount = 1;
-		device_queue_create_info.pQueuePriorities = &queue_priority;
+		VkDeviceQueueCreateInfo device_queue_create_infos[2];
+		device_queue_create_infos[0] = {};
+		device_queue_create_infos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		device_queue_create_infos[0].queueFamilyIndex = graphics_queue_family_index;
+		device_queue_create_infos[0].queueCount = 1;
+		device_queue_create_infos[0].pQueuePriorities = &queue_priority;
+
+		uint32 queue_count = 1;
+		if( graphics_queue_family_index != present_queue_family_index )
+		{
+			queue_count = 2;
+
+			device_queue_create_infos[1] = {};
+			device_queue_create_infos[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			device_queue_create_infos[1].queueFamilyIndex = present_queue_family_index;
+			device_queue_create_infos[1].queueCount = 1;
+			device_queue_create_infos[1].pQueuePriorities = &queue_priority;
+		}
 
 		VkPhysicalDeviceFeatures device_features = {};
 
 		VkDeviceCreateInfo device_create_info = {};
 		device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		device_create_info.queueCreateInfoCount = 1;
-		device_create_info.pQueueCreateInfos = &device_queue_create_info;
+		device_create_info.queueCreateInfoCount = queue_count;
+		device_create_info.pQueueCreateInfos = device_queue_create_infos;
 		device_create_info.pEnabledFeatures = &device_features;
 
 		result = vkCreateDevice( physical_device, &device_create_info, 0, &device );
 		assert( result == VK_SUCCESS );
 		
-		VkQueue queue;
-		vkGetDeviceQueue( device, graphics_queue_family_index, 0, &queue );
+		VkQueue graphics_queue;
+		VkQueue present_queue;
+		vkGetDeviceQueue( device, graphics_queue_family_index, 0, &graphics_queue );
+
+		if( graphics_queue_family_index != present_queue_family_index )
+		{
+			vkGetDeviceQueue( device, present_queue_family_index, 0, &present_queue );
+		}
+		else
+		{
+			present_queue = graphics_queue;
+		}
 	}
 
 	g_is_running = 1;
