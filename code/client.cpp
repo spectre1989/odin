@@ -192,7 +192,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		result = vkCreateDevice( physical_device, &device_create_info, 0, &device );
 		assert( result == VK_SUCCESS );
-		MessageBoxA(0, "success", "", MB_OK);
+		
+		VkQueue queue;
+		vkGetDeviceQueue( device, graphics_queue_family_index, 0, &queue );
 	}
 
 	g_is_running = 1;
