@@ -172,6 +172,43 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				}
 				
 				delete[] device_extensions;
+
+				if( physical_device )
+				{
+					uint32 format_count;
+					uint32 present_mode_count;
+					VkSurfaceFormatKHR* surface_formats = 0;
+					VkPresentModeKHR* present_modes = 0;
+
+					vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, 0 );
+					if( format_count ) 
+					{
+						// todo( jbr ) custom allocator
+						surface_formats = new VkSurfaceFormatKHR[format_count];
+					    vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
+					}
+
+					vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
+					if( present_mode_count ) 
+					{
+						present_modes = new VkPresentModeKHR[present_mode_count];
+					    vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
+					}
+
+					if( surface_formats )
+					{
+						delete[] surface_formats;
+					}
+					if( present_modes )
+					{
+						delete[] present_modes;
+					}
+				}
+			}
+
+			if( physical_device )
+			{
+				break;
 			}
 		}
 
@@ -216,7 +253,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				}
 			}
 		}
-		float32 queue_priority = 1.0f;
 
 		assert( graphics_queue_family_index != uint32( -1 ) );
 		assert( present_queue_family_index != uint32( -1 ) );
@@ -228,6 +264,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		device_queue_create_infos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		device_queue_create_infos[0].queueFamilyIndex = graphics_queue_family_index;
 		device_queue_create_infos[0].queueCount = 1;
+		float32 queue_priority = 1.0f;
 		device_queue_create_infos[0].pQueuePriorities = &queue_priority;
 
 		uint32 queue_count = 1;
@@ -249,6 +286,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		device_create_info.queueCreateInfoCount = queue_count;
 		device_create_info.pQueueCreateInfos = device_queue_create_infos;
 		device_create_info.pEnabledFeatures = &device_features;
+		const char* enabled_device_extension_names[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+		device_create_info.enabledExtensionCount = sizeof( enabled_device_extension_names ) / sizeof( enabled_device_extension_names[0] );
+		device_create_info.ppEnabledExtensionNames = enabled_device_extension_names;
 
 		result = vkCreateDevice( physical_device, &device_create_info, 0, &device );
 		assert( result == VK_SUCCESS );
