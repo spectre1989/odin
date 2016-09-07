@@ -175,33 +175,54 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 				if( physical_device )
 				{
+					VkSurfaceFormatKHR surface_format = {};
 					uint32 format_count;
-					uint32 present_mode_count;
-					VkSurfaceFormatKHR* surface_formats = 0;
-					VkPresentModeKHR* present_modes = 0;
-
-					vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, 0 );
+					result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, 0 );
+					assert( result == VK_SUCCESS );
 					if( format_count ) 
 					{
 						// todo( jbr ) custom allocator
-						surface_formats = new VkSurfaceFormatKHR[format_count];
-					    vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
-					}
+						VkSurfaceFormatKHR* surface_formats = new VkSurfaceFormatKHR[format_count];
+					    result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
+					    assert( result == VK_SUCCESS );
 
-					vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
-					if( present_mode_count ) 
-					{
-						present_modes = new VkPresentModeKHR[present_mode_count];
-					    vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
-					}
+					    if( format_count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED )
+					    {
+					    	surface_format.format = VK_FORMAT_R8G8B8A8_UNORM;
+					    	surface_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+					    }
+					    else
+					    {
+							surface_format = surface_formats[0];
+					    }
 
-					if( surface_formats )
-					{
-						delete[] surface_formats;
+					    delete[] surface_formats;
+
+					    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
+						uint32 present_mode_count;
+						result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
+						assert( result == VK_SUCCESS );
+						if( present_mode_count ) 
+						{
+							VkPresentModeKHR* present_modes = new VkPresentModeKHR[present_mode_count];
+						    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
+						    assert( result == VK_SUCCESS );
+
+						    for( uint32 j = 0; j < present_mode_count; ++j )
+						    {
+						    	if( present_modes[j] == VK_PRESENT_MODE_MAILBOX_KHR )
+						    	{
+						    		present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+						    	}
+						    }
+
+						    delete[] present_modes;
+						}
 					}
-					if( present_modes )
+					else
 					{
-						delete[] present_modes;
+						// no formats, can't use this device
+						physical_device = 0;
 					}
 				}
 			}
