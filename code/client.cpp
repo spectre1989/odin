@@ -193,6 +193,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					    }
 					    else
 					    {
+					    	// todo( jbr ) choose best surface format
 							surface_format = surface_formats[0];
 					    }
 
