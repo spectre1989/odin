@@ -64,19 +64,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	assert( window_class_atom );
 
 
+	uint32 window_width = 1280;
+	uint32 window_height = 720;
+
 	HWND window_handle;
 	{
 		LPCSTR 	window_name 	= "";
 		DWORD 	style 			= WS_OVERLAPPED;
 		int 	x 				= CW_USEDEFAULT;
 		int 	y 				= 0;
-		int 	width 			= 1280;
-		int 	height 			= 720;
 		HWND 	parent_window 	= 0;
 		HMENU 	menu 			= 0;
 		LPVOID 	param 			= 0;
 
-		window_handle 			= CreateWindow( window_class.lpszClassName, window_name, style, x, y, width, height, parent_window, menu, instance, param );
+		window_handle 			= CreateWindow( window_class.lpszClassName, window_name, style, x, y, window_width, window_height, parent_window, menu, instance, param );
 
 		assert( window_handle );
 	}
@@ -176,10 +177,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				if( physical_device )
 				{
 					VkSurfaceFormatKHR surface_format = {};
+					VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
+					VkExtent2D extent;
+
 					uint32 format_count;
+					uint32 present_mode_count;
+
 					result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, 0 );
 					assert( result == VK_SUCCESS );
-					if( format_count ) 
+
+					result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
+					assert( result == VK_SUCCESS );
+
+					if( format_count && present_mode_count ) 
 					{
 						// todo( jbr ) custom allocator
 						VkSurfaceFormatKHR* surface_formats = new VkSurfaceFormatKHR[format_count];
@@ -199,25 +209,31 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 					    delete[] surface_formats;
 
-					    VkPresentModeKHR present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
-						uint32 present_mode_count;
-						result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
+						VkPresentModeKHR* present_modes = new VkPresentModeKHR[present_mode_count];
+					    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
+					    assert( result == VK_SUCCESS );
+
+					    for( uint32 j = 0; j < present_mode_count; ++j )
+					    {
+					    	if( present_modes[j] == VK_PRESENT_MODE_MAILBOX_KHR )
+					    	{
+					    		present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
+					    	}
+					    }
+
+					    delete[] present_modes;
+
+						VkSurfaceCapabilitiesKHR surface_capabilities = {};
+						result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_capabilities );
 						assert( result == VK_SUCCESS );
-						if( present_mode_count ) 
+						
+						if( surface_capabilities.currentExtent.width == 0xFFFFFFFF )
 						{
-							VkPresentModeKHR* present_modes = new VkPresentModeKHR[present_mode_count];
-						    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
-						    assert( result == VK_SUCCESS );
-
-						    for( uint32 j = 0; j < present_mode_count; ++j )
-						    {
-						    	if( present_modes[j] == VK_PRESENT_MODE_MAILBOX_KHR )
-						    	{
-						    		present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
-						    	}
-						    }
-
-						    delete[] present_modes;
+							extent = {window_width, window_height};
+						}
+						else
+						{
+							extent = surface_capabilities.currentExtent;
 						}
 					}
 					else
