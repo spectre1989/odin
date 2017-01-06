@@ -411,8 +411,38 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert( result == VK_SUCCESS );
 	}
 
+	// load shaders
+	HANDLE file = CreateFileA("data/vert.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	assert(file != INVALID_HANDLE_VALUE);
+	DWORD vert_shader_size = GetFileSize(file, 0);
+	assert(vert_shader_size != INVALID_FILE_SIZE);
+	uint8* vert_shader_bytes = new uint8[vert_shader_size]; // todo(jbr) custom allocator
+	bool32 read_success = ReadFile(file, vert_shader_bytes, vert_shader_size, 0, 0);
+	assert(read_success);
 
+	file = CreateFileA("data/frag.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	assert(file != INVALID_HANDLE_VALUE);
+	DWORD frag_shader_size = GetFileSize(file, 0);
+	assert(frag_shader_size != INVALID_FILE_SIZE);
+	uint8* frag_shader_bytes = new uint8[frag_shader_size]; // todo(jbr) custom allocator
+	read_success = ReadFile(file, frag_shader_bytes, frag_shader_size, 0, 0);
+	assert(read_success);
 
+	VkShaderModuleCreateInfo shader_module_create_info = {};
+	shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shader_module_create_info.codeSize = vert_shader_size;
+	shader_module_create_info.pCode = (uint32_t*)vert_shader_bytes;
+	VkShaderModule vert_shader_module;
+	result = vkCreateShaderModule(device, &shader_module_create_info, 0, &vert_shader_module);
+	assert(result == VK_SUCCESS);
+
+	shader_module_create_info = {};
+	shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shader_module_create_info.codeSize = frag_shader_size;
+	shader_module_create_info.pCode = (uint32_t*)frag_shader_bytes;
+	VkShaderModule frag_shader_module;
+	result = vkCreateShaderModule(device, &shader_module_create_info, 0, &frag_shader_module);
+	assert(result == VK_SUCCESS);
 
 	g_is_running = 1;
 	while( g_is_running )

@@ -1,1 +1,3 @@
-build\client
+cd build
+client
+cd ..
