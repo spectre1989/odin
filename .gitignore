@@ -2,6 +2,7 @@
 *.ilk
 *.obj
 *.pdb
+*.spv
 
 client/Library
 log.txt
