@@ -444,6 +444,123 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	result = vkCreateShaderModule(device, &shader_module_create_info, 0, &frag_shader_module);
 	assert(result == VK_SUCCESS);
 
+	VkPipelineShaderStageCreateInfo shader_stage_create_info[2];
+	shader_stage_create_info[0] = {};
+	shader_stage_create_info[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shader_stage_create_info[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shader_stage_create_info[0].module = vert_shader_module;
+	shader_stage_create_info[0].pName = "main";
+	
+	shader_stage_create_info[1] = {};
+	shader_stage_create_info[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shader_stage_create_info[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shader_stage_create_info[1].module = frag_shader_module;
+	shader_stage_create_info[1].pName = "main";
+
+	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
+	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
+	input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = (float)swapchain_extent.width;
+	viewport.height = (float)swapchain_extent.height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	VkRect2D scissor = {};
+	scissor.offset = {0, 0};
+	scissor.extent = swapchain_extent;
+
+	VkPipelineViewportStateCreateInfo viewport_create_info = {};
+	viewport_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewport_create_info.viewportCount = 1;
+	viewport_create_info.pViewports = &viewport;
+	viewport_create_info.scissorCount = 1;
+	viewport_create_info.pScissors = &scissor;
+
+ 	VkPipelineRasterizationStateCreateInfo rasteriser_create_info = {};
+ 	rasteriser_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+ 	rasteriser_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+ 	rasteriser_create_info.lineWidth = 1.0f;
+ 	rasteriser_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+ 	rasteriser_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+
+	VkPipelineMultisampleStateCreateInfo multisampling_create_info = {};
+	multisampling_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	VkPipelineColorBlendAttachmentState colour_blend_attachment = {};
+	colour_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+											VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+
+	VkPipelineColorBlendStateCreateInfo colour_blend_state_create_info = {};
+	colour_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colour_blend_state_create_info.attachmentCount = 1;
+	colour_blend_state_create_info.pAttachments = &colour_blend_attachment;
+	
+	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
+	pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+	VkPipelineLayout pipeline_layout;
+	result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, 0, &pipeline_layout);
+	assert(result == VK_SUCCESS);
+	
+	VkAttachmentDescription colour_attachment = {};
+    colour_attachment.format = swapchain_surface_format.format;
+    colour_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colour_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	colour_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	colour_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colour_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	colour_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colour_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference colour_attachment_ref = {};
+	colour_attachment_ref.attachment = 0;
+	colour_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass_desc = {};
+	subpass_desc.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass_desc.colorAttachmentCount = 1;
+	subpass_desc.pColorAttachments = &colour_attachment_ref;
+
+	VkRenderPassCreateInfo render_pass_create_info = {};
+	render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	render_pass_create_info.attachmentCount = 1;
+	render_pass_create_info.pAttachments = &colour_attachment;
+	render_pass_create_info.subpassCount = 1;
+	render_pass_create_info.pSubpasses = &subpass_desc;
+
+	VkRenderPass render_pass;
+	result = vkCreateRenderPass(device, &render_pass_create_info, 0, &render_pass);
+	assert(result == VK_SUCCESS);
+
+	VkGraphicsPipelineCreateInfo pipeline_create_info = {};
+	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline_create_info.stageCount = 2;
+	pipeline_create_info.pStages = &shader_stage_create_info[0];
+	pipeline_create_info.pVertexInputState = &vertex_input_info;
+	pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
+	pipeline_create_info.pViewportState = &viewport_create_info;
+	pipeline_create_info.pRasterizationState = &rasteriser_create_info;
+	pipeline_create_info.pMultisampleState = &multisampling_create_info;
+	pipeline_create_info.pColorBlendState = &colour_blend_state_create_info;
+	pipeline_create_info.layout = pipeline_layout;
+	pipeline_create_info.renderPass = render_pass;
+	pipeline_create_info.subpass = 0;
+	
+	VkPipeline graphics_pipeline;
+	result = vkCreateGraphicsPipelines(device, 0, 1, &pipeline_create_info, 0, &graphics_pipeline);
+	assert(result == VK_SUCCESS);
+	
+
+	MessageBoxA( 0, "Success!", "", MB_OK );
+
 	g_is_running = 1;
 	while( g_is_running )
 	{
