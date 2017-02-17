@@ -3,6 +3,7 @@
 *.obj
 *.pdb
 *.spv
+*.suo
 
 client/Library
 log.txt
