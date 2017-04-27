@@ -558,6 +558,25 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	result = vkCreateGraphicsPipelines(device, 0, 1, &pipeline_create_info, 0, &graphics_pipeline);
 	assert(result == VK_SUCCESS);
 	
+	VkFramebuffer* swapchain_frame_buffers = new VkFramebuffer[swapchain_image_count]; // todo(jbr) custom allocator
+	for(uint32 i = 0; i < swapchain_image_count; ++i)
+	{
+		VkFramebufferCreateInfo framebuffer_create_info = {};
+		framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+		framebuffer_create_info.renderPass = render_pass;
+		framebuffer_create_info.attachmentCount = 1;
+		framebuffer_create_info.pAttachments = &swapchain_image_views[i];
+		framebuffer_create_info.width = swapchain_extent.width;
+		framebuffer_create_info.height = swapchain_extent.height;
+		framebuffer_create_info.layers = 1;
+
+		result = vkCreateFramebuffer(device, &framebuffer_create_info, 0, &swapchain_frame_buffers[i]);
+		assert(result == VK_SUCCESS);
+	}
+
+	
+
+
 
 	MessageBoxA( 0, "Success!", "", MB_OK );
 
