@@ -558,7 +558,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	result = vkCreateGraphicsPipelines(device, 0, 1, &pipeline_create_info, 0, &graphics_pipeline);
 	assert(result == VK_SUCCESS);
 	
-	VkFramebuffer* swapchain_frame_buffers = new VkFramebuffer[swapchain_image_count]; // todo(jbr) custom allocator
+	VkFramebuffer* swapchain_framebuffers = new VkFramebuffer[swapchain_image_count]; // todo(jbr) custom allocator
 	for(uint32 i = 0; i < swapchain_image_count; ++i)
 	{
 		VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -570,12 +570,55 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		framebuffer_create_info.height = swapchain_extent.height;
 		framebuffer_create_info.layers = 1;
 
-		result = vkCreateFramebuffer(device, &framebuffer_create_info, 0, &swapchain_frame_buffers[i]);
+		result = vkCreateFramebuffer(device, &framebuffer_create_info, 0, &swapchain_framebuffers[i]);
 		assert(result == VK_SUCCESS);
 	}
 
-	
+	VkCommandPoolCreateInfo command_pool_create_info = {};
+	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	command_pool_create_info.queueFamilyIndex = graphics_queue_family_index;
 
+	VkCommandPool command_pool;
+	vkCreateCommandPool(device, &command_pool_create_info, 0, &command_pool);
+
+	VkCommandBuffer* command_buffers = new VkCommandBuffer[swapchain_image_count]; // todo(jbr) custom allocator
+	VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+	command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	command_buffer_allocate_info.commandPool = command_pool;
+	command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	command_buffer_allocate_info.commandBufferCount = swapchain_image_count;
+
+	result = vkAllocateCommandBuffers(device, &command_buffer_allocate_info, command_buffers);
+	assert(result == VK_SUCCESS);
+
+	VkClearValue clear_colour = {0.0f, 0.0f, 0.0f, 1.0f};
+	for (uint32 i = 0; i < swapchain_image_count; ++i)
+	{
+	    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+	    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+	    vkBeginCommandBuffer(command_buffers[i], &command_buffer_begin_info);
+
+	    VkRenderPassBeginInfo render_pass_begin_info = {};
+		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		render_pass_begin_info.renderPass = render_pass;
+		render_pass_begin_info.framebuffer = swapchain_framebuffers[i];
+		render_pass_begin_info.renderArea.offset = {0, 0};
+		render_pass_begin_info.renderArea.extent = swapchain_extent;
+		render_pass_begin_info.clearValueCount = 1;
+		render_pass_begin_info.pClearValues = &clear_colour;
+		vkCmdBeginRenderPass(command_buffers[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+
+		vkCmdDraw(command_buffers[i], 3, 1, 0, 0);
+
+		vkCmdEndRenderPass(command_buffers[i]);
+
+		result = vkEndCommandBuffer(command_buffers[i]);
+		assert(result == VK_SUCCESS);
+	}
 
 
 	MessageBoxA( 0, "Success!", "", MB_OK );
