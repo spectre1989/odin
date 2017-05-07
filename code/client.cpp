@@ -529,12 +529,22 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	subpass_desc.colorAttachmentCount = 1;
 	subpass_desc.pColorAttachments = &colour_attachment_ref;
 
+	VkSubpassDependency dependency = {};
+	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	dependency.dstSubpass = 0;
+	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.srcAccessMask = 0;
+	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
 	VkRenderPassCreateInfo render_pass_create_info = {};
 	render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	render_pass_create_info.attachmentCount = 1;
 	render_pass_create_info.pAttachments = &colour_attachment;
 	render_pass_create_info.subpassCount = 1;
 	render_pass_create_info.pSubpasses = &subpass_desc;
+	render_pass_create_info.dependencyCount = 1;
+	render_pass_create_info.pDependencies = &dependency;
 
 	VkRenderPass render_pass;
 	result = vkCreateRenderPass(device, &render_pass_create_info, 0, &render_pass);
@@ -620,8 +630,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert(result == VK_SUCCESS);
 	}
 
+	VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	MessageBoxA( 0, "Success!", "", MB_OK );
+    VkSemaphore image_available_semaphore;
+	result = vkCreateSemaphore(device, &semaphore_create_info, 0, &image_available_semaphore);
+	assert(result == VK_SUCCESS);
+
+	VkSemaphore render_finished_semaphore;
+	result = vkCreateSemaphore(device, &semaphore_create_info, 0, &render_finished_semaphore);
+	assert(result == VK_SUCCESS);
+
+
+
 
 	g_is_running = 1;
 	while( g_is_running )
@@ -635,6 +656,34 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			TranslateMessage( &message );
 			DispatchMessage( &message );
 		}
+
+
+		uint32 image_index;
+	    result = vkAcquireNextImageKHR(device, swapchain, (uint64_t)-1, image_available_semaphore, 0, &image_index);
+	    //assert(result == VK_SUCCESS);
+
+	    VkSubmitInfo submit_info = {};
+		submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		submit_info.waitSemaphoreCount = 1;
+		submit_info.pWaitSemaphores = &image_available_semaphore;
+		VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		submit_info.pWaitDstStageMask = &wait_stage;
+		submit_info.commandBufferCount = 1;
+		submit_info.pCommandBuffers = &command_buffers[image_index];
+		submit_info.signalSemaphoreCount = 1;
+		submit_info.pSignalSemaphores = &render_finished_semaphore;
+		result = vkQueueSubmit(graphics_queue, 1, &submit_info, 0);
+		assert(result == VK_SUCCESS);
+
+		VkPresentInfoKHR present_info = {};
+		present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		present_info.waitSemaphoreCount = 1;
+		present_info.pWaitSemaphores = &render_finished_semaphore;
+		present_info.swapchainCount = 1;
+		present_info.pSwapchains = &swapchain;
+		present_info.pImageIndices = &image_index;
+		result = vkQueuePresentKHR(present_queue, &present_info);
+		//assert(result == VK_SUCCESS);
 	}
 
 	// todo( jbr ) return wParam of WM_QUIT
