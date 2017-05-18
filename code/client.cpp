@@ -457,8 +457,38 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	shader_stage_create_info[1].module = frag_shader_module;
 	shader_stage_create_info[1].pName = "main";
 
+	struct Vertex
+	{
+		float pos_x;
+		float pos_y;
+		float colour_r;
+		float colour_g;
+		float colour_b;
+	};
+
+	VkVertexInputBindingDescription vertex_input_binding_desc = {};
+	vertex_input_binding_desc.binding = 0;
+	vertex_input_binding_desc.stride = sizeof(Vertex);
+	vertex_input_binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+	VkVertexInputAttributeDescription vertex_input_attribute_desc[2];
+	vertex_input_attribute_desc[0] = {};
+	vertex_input_attribute_desc[0].binding = 0;
+	vertex_input_attribute_desc[0].location = 0;
+	vertex_input_attribute_desc[0].format = VK_FORMAT_R32G32_SFLOAT;
+	vertex_input_attribute_desc[0].offset = 0;
+	vertex_input_attribute_desc[1] = {};
+	vertex_input_attribute_desc[1].binding = 0;
+	vertex_input_attribute_desc[1].location = 1;
+	vertex_input_attribute_desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertex_input_attribute_desc[1].offset = sizeof(float) * 2;
+
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertex_input_info.vertexBindingDescriptionCount = 1;
+	vertex_input_info.pVertexBindingDescriptions = &vertex_input_binding_desc;
+	vertex_input_info.vertexAttributeDescriptionCount = 2;
+	vertex_input_info.pVertexAttributeDescriptions = &vertex_input_attribute_desc[0];
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
 	input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -584,6 +614,56 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert(result == VK_SUCCESS);
 	}
 
+	constexpr uint32 c_num_vertices = 3;
+	Vertex vertices[c_num_vertices] = {{0.0f, -0.5f, 1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.0f, 1.0f, 0.0f}, {-0.5f, 0.5f, 0.0f, 0.0f, 1.0f}};
+	constexpr uint32 c_vertex_data_size = c_num_vertices * sizeof(Vertex);
+
+	VkBufferCreateInfo buffer_create_info = {};
+	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_create_info.size = c_vertex_data_size;
+	buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VkBuffer vertex_buffer;
+	result = vkCreateBuffer(device, &buffer_create_info, 0, &vertex_buffer);
+	assert(result == VK_SUCCESS);
+
+	VkMemoryRequirements vertex_buffer_memory_requirements;
+	vkGetBufferMemoryRequirements(device, vertex_buffer, &vertex_buffer_memory_requirements);
+
+	VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
+
+	constexpr uint32 c_required_memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	uint32 chosen_memory_type_index = (uint32)-1;
+	for(uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
+	{
+	    if((vertex_buffer_memory_requirements.memoryTypeBits & (1 << i)) && 
+	    	(physical_device_memory_properties.memoryTypes[i].propertyFlags & c_required_memory_properties) == c_required_memory_properties) 
+	    {
+	    	chosen_memory_type_index = i;
+	    	break;
+	    }
+	}
+
+	assert(chosen_memory_type_index != (uint32)-1);
+
+	VkMemoryAllocateInfo memory_allocate_info = {};
+	memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memory_allocate_info.allocationSize = vertex_buffer_memory_requirements.size;
+	memory_allocate_info.memoryTypeIndex = chosen_memory_type_index;
+
+	VkDeviceMemory vertex_buffer_memory;
+	result = vkAllocateMemory(device, &memory_allocate_info, 0, &vertex_buffer_memory);
+	assert(result == VK_SUCCESS);
+
+	vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0);
+
+	void* data;
+	vkMapMemory(device, vertex_buffer_memory, 0, c_vertex_data_size, 0, &data);
+	memcpy(data, vertices, c_vertex_data_size);
+	vkUnmapMemory(device, vertex_buffer_memory);
+
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	command_pool_create_info.queueFamilyIndex = graphics_queue_family_index;
@@ -622,6 +702,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
+		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+
+		VkDeviceSize offset = 0;
+		vkCmdBindVertexBuffers(command_buffers[i], 0, 1, &vertex_buffer, &offset);
+
+		vkCmdDraw(command_buffers[i], c_num_vertices, 1, 0, 0);
+
+
 		vkCmdDraw(command_buffers[i], 3, 1, 0, 0);
 
 		vkCmdEndRenderPass(command_buffers[i]);
@@ -640,7 +728,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	VkSemaphore render_finished_semaphore;
 	result = vkCreateSemaphore(device, &semaphore_create_info, 0, &render_finished_semaphore);
 	assert(result == VK_SUCCESS);
-
 
 
 
