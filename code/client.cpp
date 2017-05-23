@@ -3,9 +3,7 @@
 #include <vulkan\vulkan.h>
 #include <windows.h>
 
-#include "odin.h"
-
-typedef int bool32;
+#include "common.cpp"
 
 static bool32 g_is_running;
 static FILE* g_log_file;
@@ -461,9 +459,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	{
 		float pos_x;
 		float pos_y;
-		float colour_r;
-		float colour_g;
-		float colour_b;
 	};
 
 	VkVertexInputBindingDescription vertex_input_binding_desc = {};
@@ -471,17 +466,12 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	vertex_input_binding_desc.stride = sizeof(Vertex);
 	vertex_input_binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	VkVertexInputAttributeDescription vertex_input_attribute_desc[2];
+	VkVertexInputAttributeDescription vertex_input_attribute_desc[1];
 	vertex_input_attribute_desc[0] = {};
 	vertex_input_attribute_desc[0].binding = 0;
 	vertex_input_attribute_desc[0].location = 0;
 	vertex_input_attribute_desc[0].format = VK_FORMAT_R32G32_SFLOAT;
 	vertex_input_attribute_desc[0].offset = 0;
-	vertex_input_attribute_desc[1] = {};
-	vertex_input_attribute_desc[1].binding = 0;
-	vertex_input_attribute_desc[1].location = 1;
-	vertex_input_attribute_desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertex_input_attribute_desc[1].offset = sizeof(float) * 2;
 
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -614,9 +604,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert(result == VK_SUCCESS);
 	}
 
-	constexpr uint32 c_num_vertices = 3;
-	Vertex vertices[c_num_vertices] = {{0.0f, -0.5f, 1.0f, 0.0f, 0.0f}, {0.5f, 0.5f, 0.0f, 1.0f, 0.0f}, {-0.5f, 0.5f, 0.0f, 0.0f, 1.0f}};
-	constexpr uint32 c_vertex_data_size = c_num_vertices * sizeof(Vertex);
+	constexpr uint32 c_num_vertices = 4;
+	Vertex vertices[c_num_vertices] = {{-0.05f, -0.05f}, {0.05f, -0.05f}, {0.05f, 0.05f}, {-0.05f, 0.05f}};
+	constexpr uint32 c_vertex_data_size = c_num_vertices * sizeof(vertices[0]);
+
+	constexpr uint32 c_num_indices = 6;
+	uint16 indices[c_num_indices] = {0, 1, 2, 0, 2, 3};
+	constexpr uint32 c_index_data_size = c_num_indices * sizeof(indices[0]);
 
 	VkBufferCreateInfo buffer_create_info = {};
 	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -746,8 +740,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		uint32 image_index;
-	    result = vkAcquireNextImageKHR(device, swapchain, (uint64_t)-1, image_available_semaphore, 0, &image_index);
-	    //assert(result == VK_SUCCESS);
+	    result = vkAcquireNextImageKHR(device, swapchain, (uint64)-1, image_available_semaphore, 0, &image_index);
+	    assert(result == VK_SUCCESS);
 
 	    VkSubmitInfo submit_info = {};
 		submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -770,7 +764,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		present_info.pSwapchains = &swapchain;
 		present_info.pImageIndices = &image_index;
 		result = vkQueuePresentKHR(present_queue, &present_info);
-		//assert(result == VK_SUCCESS);
+		assert(result == VK_SUCCESS);
 	}
 
 	// todo( jbr ) return wParam of WM_QUIT

@@ -1,5 +1,3 @@
-#pragma once
-
 typedef unsigned long long uint64;
 typedef unsigned int uint32;
 typedef unsigned short uint16;
@@ -12,5 +10,8 @@ typedef int bool32;
 typedef float float32;
 typedef double float64;
 
-const uint16 PORT = 9999;
-const uint32 SOCKET_BUFFER_SIZE = 1024;
+constexpr uint16 	c_port = 9999;
+constexpr uint32 	c_socket_buffer_size = 1024;
+constexpr uint16	c_max_clients 		= 32;
+constexpr uint32	c_ticks_per_second 	= 60;
+constexpr float32	c_seconds_per_tick 	= 1.0f / (float32)c_ticks_per_second;
