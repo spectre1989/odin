@@ -71,6 +71,14 @@ static void create_buffer(VkPhysicalDevice physical_device, VkDevice device, con
 	*p_out_buffer_memory = buffer_memory;
 }
 
+static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* src, uint32 size)
+{
+	void* dst;
+	vkMapMemory(device, buffer_memory, 0, size, 0, &dst);
+	memcpy(dst, src, size);
+	vkUnmapMemory(device, buffer_memory);
+}
+
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
 {
 	switch( message )
@@ -645,13 +653,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		assert(result == VK_SUCCESS);
 	}
 
-	constexpr uint32 c_num_vertices = 4;
-	Vertex vertices[c_num_vertices] = {{-0.05f, -0.05f}, {0.05f, -0.05f}, {0.05f, 0.05f}, {-0.05f, 0.05f}};
+	// Create vertex buffer
+	constexpr uint32 c_num_vertices = 4 * c_max_clients;
+	Vertex vertices[c_num_vertices];
 	constexpr uint32 c_vertex_data_size = c_num_vertices * sizeof(vertices[0]);
 
-	constexpr uint32 c_num_indices = 6;
-	uint16 indices[c_num_indices] = {0, 1, 2, 0, 2, 3};
-	constexpr uint32 c_index_data_size = c_num_indices * sizeof(indices[0]);
+	for(uint32 i = 0; i < c_num_vertices; ++i)
+	{
+		vertices[i] = {};
+	}
 
 	VkBufferCreateInfo buffer_create_info = {};
 	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -660,14 +670,59 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VkBuffer vertex_buffer;
-	VkBufferMemory vertex_buffer_memory;
-
+	VkDeviceMemory vertex_buffer_memory;
 	create_buffer(physical_device, device, &buffer_create_info, &vertex_buffer, &vertex_buffer_memory);
 
-	void* data;
-	vkMapMemory(device, vertex_buffer_memory, 0, c_vertex_data_size, 0, &data);
-	memcpy(data, vertices, c_vertex_data_size);
-	vkUnmapMemory(device, vertex_buffer_memory);
+	// Create index buffer
+	constexpr uint32 c_num_indices = 6 * c_max_clients;
+	uint16 indices[c_num_indices];
+	constexpr uint32 c_index_data_size = c_num_indices * sizeof(indices[0]);
+	
+	for(uint16 i = 0; i < c_num_indices; i += 6)
+	{
+		// quads will be bottom left, top left, top right, bottom right
+		indices[i] = i;				// 0
+		indices[i + 1] = i + 1;		// 1
+		indices[i + 2] = i + 2;		// 2
+		indices[i + 3] = i;			// 0
+		indices[i + 4] = i + 2;		// 2
+		indices[i + 5] = i + 3;		// 3
+	}
+
+	buffer_create_info.size = c_vertex_data_size;
+	buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+	VkBuffer index_buffer;
+	VkDeviceMemory index_buffer_memory;
+	create_buffer(physical_device, device, &buffer_create_info, &index_buffer, &index_buffer_memory);
+
+	copy_to_buffer(device, index_buffer_memory, (void*)indices, c_index_data_size);
+
+	// Create uniform buffer
+	struct Per_Quad_UBO
+	{
+		float r, g, b;
+	};
+
+	constexpr uint32 c_num_uniforms = c_max_clients;
+	Per_Quad_UBO uniforms[c_num_uniforms];
+	constexpr uint32 c_uniform_data_size = c_num_uniforms * sizeof(uniforms[0]);
+
+	for(uint32 i = 0; i < c_num_uniforms; ++i)
+	{
+		uniforms[i].r = 1.0f;
+		uniforms[i].g = 0.0f;
+		uniforms[i].b = 0.0f;
+	}
+
+	buffer_create_info.size = c_uniform_data_size;
+	buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+
+	VkBuffer uniform_buffer;
+	VkDeviceMemory uniform_buffer_memory;
+	create_buffer(physical_device, device, &buffer_create_info, &uniform_buffer, &uniform_buffer_memory);
+
+	copy_to_buffer(device, uniform_buffer_memory, (void*)uniforms, c_uniform_data_size);
 
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

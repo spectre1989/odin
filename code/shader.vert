@@ -1,9 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-layout(binding = 0) uniform Per_Instance_UBO
+layout(binding = 0) uniform Per_Quad_UBO
 {
-	mat4 matrix;
 	vec3 colour;
 } per_instance_ubo;
 
