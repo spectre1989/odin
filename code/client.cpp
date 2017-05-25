@@ -30,6 +30,47 @@ static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/,
     return VK_FALSE;
 }
 
+static void create_buffer(VkPhysicalDevice physical_device, VkDevice device, const VkBufferCreateInfo* pc_buffer_create_info, VkBuffer* p_out_buffer, VkDeviceMemory* p_out_buffer_memory)
+{
+	VkBuffer buffer;
+	VkResult result = vkCreateBuffer(device, pc_buffer_create_info, 0, &buffer);
+	assert(result == VK_SUCCESS);
+
+	VkMemoryRequirements memory_requirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+
+	VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
+
+	constexpr uint32 c_required_memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	uint32 chosen_memory_type_index = (uint32)-1;
+	for(uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
+	{
+	    if((memory_requirements.memoryTypeBits & (1 << i)) && 
+	    	(physical_device_memory_properties.memoryTypes[i].propertyFlags & c_required_memory_properties) == c_required_memory_properties) 
+	    {
+	    	chosen_memory_type_index = i;
+	    	break;
+	    }
+	}
+
+	assert(chosen_memory_type_index != (uint32)-1);
+
+	VkMemoryAllocateInfo memory_allocate_info = {};
+	memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	memory_allocate_info.allocationSize = memory_requirements.size;
+	memory_allocate_info.memoryTypeIndex = chosen_memory_type_index;
+
+	VkDeviceMemory buffer_memory;
+	result = vkAllocateMemory(device, &memory_allocate_info, 0, &buffer_memory);
+	assert(result == VK_SUCCESS);
+
+	vkBindBufferMemory(device, buffer, buffer_memory, 0);
+
+	*p_out_buffer = buffer;
+	*p_out_buffer_memory = buffer_memory;
+}
+
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
 {
 	switch( message )
@@ -619,39 +660,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VkBuffer vertex_buffer;
-	result = vkCreateBuffer(device, &buffer_create_info, 0, &vertex_buffer);
-	assert(result == VK_SUCCESS);
+	VkBufferMemory vertex_buffer_memory;
 
-	VkMemoryRequirements vertex_buffer_memory_requirements;
-	vkGetBufferMemoryRequirements(device, vertex_buffer, &vertex_buffer_memory_requirements);
-
-	VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-	vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
-
-	constexpr uint32 c_required_memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-	uint32 chosen_memory_type_index = (uint32)-1;
-	for(uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
-	{
-	    if((vertex_buffer_memory_requirements.memoryTypeBits & (1 << i)) && 
-	    	(physical_device_memory_properties.memoryTypes[i].propertyFlags & c_required_memory_properties) == c_required_memory_properties) 
-	    {
-	    	chosen_memory_type_index = i;
-	    	break;
-	    }
-	}
-
-	assert(chosen_memory_type_index != (uint32)-1);
-
-	VkMemoryAllocateInfo memory_allocate_info = {};
-	memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	memory_allocate_info.allocationSize = vertex_buffer_memory_requirements.size;
-	memory_allocate_info.memoryTypeIndex = chosen_memory_type_index;
-
-	VkDeviceMemory vertex_buffer_memory;
-	result = vkAllocateMemory(device, &memory_allocate_info, 0, &vertex_buffer_memory);
-	assert(result == VK_SUCCESS);
-
-	vkBindBufferMemory(device, vertex_buffer, vertex_buffer_memory, 0);
+	create_buffer(physical_device, device, &buffer_create_info, &vertex_buffer, &vertex_buffer_memory);
 
 	void* data;
 	vkMapMemory(device, vertex_buffer_memory, 0, c_vertex_data_size, 0, &data);
