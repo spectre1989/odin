@@ -578,7 +578,42 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	VkPipelineLayout pipeline_layout;
 	result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, 0, &pipeline_layout);
 	assert(result == VK_SUCCESS);
+
+
+
+
+
+	struct Per_Quad_UBO
+	{
+		float r, g, b;
+	};
+
+	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
+	descriptor_set_layout_binding.binding = 0;
+	descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptor_set_layout_binding.descriptorCount = 1;
+	descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
+	descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptor_set_layout_create_info.bindingCount = 1;
+	descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
+
+	VkDescriptorSetLayout descriptor_set_layout;
+	result = vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, 0, &descriptor_set_layout);
+	assert(result == VK_SUCCESS);
+
+	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
+	pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_create_info.setLayoutCount = 1;
+	pipeline_layout_create_info.pSetLayouts = &descriptorSetLayout;
+
+	VkPipelineLayout pipeline_layout;
+
 	
+
+
+
 	VkAttachmentDescription colour_attachment = {};
     colour_attachment.format = swapchain_surface_format.format;
     colour_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -699,11 +734,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	copy_to_buffer(device, index_buffer_memory, (void*)indices, c_index_data_size);
 
 	// Create uniform buffer
-	struct Per_Quad_UBO
-	{
-		float r, g, b;
-	};
-
 	constexpr uint32 c_num_uniforms = c_max_clients;
 	Per_Quad_UBO uniforms[c_num_uniforms];
 	constexpr uint32 c_uniform_data_size = c_num_uniforms * sizeof(uniforms[0]);
