@@ -508,6 +508,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	{
 		float pos_x;
 		float pos_y;
+		float col_r;
+		float col_g;
+		float col_b;
 	};
 
 	VkVertexInputBindingDescription vertex_input_binding_desc = {};
@@ -515,19 +518,24 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	vertex_input_binding_desc.stride = sizeof(Vertex);
 	vertex_input_binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-	VkVertexInputAttributeDescription vertex_input_attribute_desc[1];
+	VkVertexInputAttributeDescription vertex_input_attribute_desc[2];
 	vertex_input_attribute_desc[0] = {};
 	vertex_input_attribute_desc[0].binding = 0;
 	vertex_input_attribute_desc[0].location = 0;
 	vertex_input_attribute_desc[0].format = VK_FORMAT_R32G32_SFLOAT;
 	vertex_input_attribute_desc[0].offset = 0;
+	vertex_input_attribute_desc[1] = {};
+	vertex_input_attribute_desc[1].binding = 0;
+	vertex_input_attribute_desc[1].location = 1;
+	vertex_input_attribute_desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+	vertex_input_attribute_desc[1].offset = 8;
 
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertex_input_info.vertexBindingDescriptionCount = 1;
 	vertex_input_info.pVertexBindingDescriptions = &vertex_input_binding_desc;
 	vertex_input_info.vertexAttributeDescriptionCount = 2;
-	vertex_input_info.pVertexAttributeDescriptions = &vertex_input_attribute_desc[0];
+	vertex_input_info.pVertexAttributeDescriptions = vertex_input_attribute_desc;
 
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info = {};
 	input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -571,48 +579,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	colour_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colour_blend_state_create_info.attachmentCount = 1;
 	colour_blend_state_create_info.pAttachments = &colour_blend_attachment;
-	
+
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
 	pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 
 	VkPipelineLayout pipeline_layout;
 	result = vkCreatePipelineLayout(device, &pipeline_layout_create_info, 0, &pipeline_layout);
 	assert(result == VK_SUCCESS);
-
-
-
-
-
-	struct Per_Quad_UBO
-	{
-		float r, g, b;
-	};
-
-	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
-	descriptor_set_layout_binding.binding = 0;
-	descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptor_set_layout_binding.descriptorCount = 1;
-	descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
-	descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	descriptor_set_layout_create_info.bindingCount = 1;
-	descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
-
-	VkDescriptorSetLayout descriptor_set_layout;
-	result = vkCreateDescriptorSetLayout(device, &descriptor_set_layout_create_info, 0, &descriptor_set_layout);
-	assert(result == VK_SUCCESS);
-
-	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
-	pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipeline_layout_create_info.setLayoutCount = 1;
-	pipeline_layout_create_info.pSetLayouts = &descriptorSetLayout;
-
-	VkPipelineLayout pipeline_layout;
-
-	
-
-
 
 	VkAttachmentDescription colour_attachment = {};
     colour_attachment.format = swapchain_surface_format.format;
@@ -695,7 +668,22 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	for(uint32 i = 0; i < c_num_vertices; ++i)
 	{
+		// hdc y axis points down
+		float x = 0.0f, y = 0.0f;
+		uint32 type = i % 4;
+		if(type == 0 || type == 1) x = -0.4f;
+		else x = 0.4f;
+		if(type == 1 || type == 2) y = 0.4f;
+		else y = -0.4f;
+
+		float g = 0.0f;
+		if(type == 1 || type == 2) g = 1.0f;
+
 		vertices[i] = {};
+		vertices[i].pos_x = x;
+		vertices[i].pos_y = y;
+		vertices[i].col_r = 1.0f;
+		vertices[i].col_g = g;
 	}
 
 	VkBufferCreateInfo buffer_create_info = {};
@@ -708,23 +696,25 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	VkDeviceMemory vertex_buffer_memory;
 	create_buffer(physical_device, device, &buffer_create_info, &vertex_buffer, &vertex_buffer_memory);
 
+	copy_to_buffer(device, vertex_buffer_memory, (void*)vertices, c_vertex_data_size);
+
 	// Create index buffer
 	constexpr uint32 c_num_indices = 6 * c_max_clients;
 	uint16 indices[c_num_indices];
 	constexpr uint32 c_index_data_size = c_num_indices * sizeof(indices[0]);
 	
-	for(uint16 i = 0; i < c_num_indices; i += 6)
+	for(uint16 index = 0, vertex = 0; index < c_num_indices; index += 6, vertex += 4)
 	{
-		// quads will be bottom left, top left, top right, bottom right
-		indices[i] = i;				// 0
-		indices[i + 1] = i + 1;		// 1
-		indices[i + 2] = i + 2;		// 2
-		indices[i + 3] = i;			// 0
-		indices[i + 4] = i + 2;		// 2
-		indices[i + 5] = i + 3;		// 3
+		// quads will be top left, bottom left, bottom right, top right
+		indices[index] = vertex;				// 0
+		indices[index + 1] = vertex + 2;		// 2
+		indices[index + 2] = vertex + 1;		// 1
+		indices[index + 3] = vertex;			// 0
+		indices[index + 4] = vertex + 3;		// 3
+		indices[index + 5] = vertex + 2;		// 2
 	}
 
-	buffer_create_info.size = c_vertex_data_size;
+	buffer_create_info.size = c_index_data_size;
 	buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 
 	VkBuffer index_buffer;
@@ -732,27 +722,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	create_buffer(physical_device, device, &buffer_create_info, &index_buffer, &index_buffer_memory);
 
 	copy_to_buffer(device, index_buffer_memory, (void*)indices, c_index_data_size);
-
-	// Create uniform buffer
-	constexpr uint32 c_num_uniforms = c_max_clients;
-	Per_Quad_UBO uniforms[c_num_uniforms];
-	constexpr uint32 c_uniform_data_size = c_num_uniforms * sizeof(uniforms[0]);
-
-	for(uint32 i = 0; i < c_num_uniforms; ++i)
-	{
-		uniforms[i].r = 1.0f;
-		uniforms[i].g = 0.0f;
-		uniforms[i].b = 0.0f;
-	}
-
-	buffer_create_info.size = c_uniform_data_size;
-	buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-
-	VkBuffer uniform_buffer;
-	VkDeviceMemory uniform_buffer_memory;
-	create_buffer(physical_device, device, &buffer_create_info, &uniform_buffer, &uniform_buffer_memory);
-
-	copy_to_buffer(device, uniform_buffer_memory, (void*)uniforms, c_uniform_data_size);
 
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -792,15 +761,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
 
-		vkCmdBindPipeline(command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(command_buffers[i], 0, 1, &vertex_buffer, &offset);
+		vkCmdBindIndexBuffer(command_buffers[i], index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-		vkCmdDraw(command_buffers[i], c_num_vertices, 1, 0, 0);
-
-
-		vkCmdDraw(command_buffers[i], 3, 1, 0, 0);
+		vkCmdDrawIndexed(command_buffers[i], c_num_indices, 1, 0, 0, 0);
 
 		vkCmdEndRenderPass(command_buffers[i]);
 

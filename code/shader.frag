@@ -7,5 +7,5 @@ layout(location = 0) out vec4 out_colour;
 
 void main() 
 {
-    out_colour = vec4(fragColour, 1.0);
+    out_colour = vec4(in_colour, 1.0);
 }
