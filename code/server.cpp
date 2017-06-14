@@ -10,19 +10,6 @@ constexpr float32 c_acceleration 	= 20.0f;
 constexpr float32 c_max_speed 		= 50.0f;
 constexpr float32 c_client_timeout 	= 5.0f;
 
-enum class Client_Message : uint8
-{
-	Join,		// tell server we're new here
-	Leave,		// tell server we're leaving
-	Input 		// tell server our user input
-};
-
-enum class Server_Message : uint8
-{
-	Join_Result,// tell client they're accepted/rejected
-	State 		// tell client game state
-};
-
 struct IP_Endpoint
 {
 	uint32 address;
@@ -30,23 +17,11 @@ struct IP_Endpoint
 };
 bool operator==(const IP_Endpoint& a, const IP_Endpoint& b) { return a.address == b.address && a.port == b.port; }
 
-struct Player_State
-{
-	float32 x, y, facing, speed;
-};
-
 struct Player_Input
 {
 	bool32 up, down, left, right;
 };
 
-static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
-{
-	LARGE_INTEGER now;
-	QueryPerformanceCounter(&now);
-
-	return (float32)(now.QuadPart - t.QuadPart) / (float32)frequency.QuadPart;
-}
 
 void main()
 {
@@ -90,7 +65,7 @@ void main()
 	LARGE_INTEGER clock_frequency;
 	QueryPerformanceFrequency(&clock_frequency);
 
-	int8 buffer[c_socket_buffer_size];
+	uint8 buffer[c_socket_buffer_size];
 	IP_Endpoint client_endpoints[c_max_clients];
 	float32 time_since_heard_from_clients[c_max_clients];
 	Player_State client_objects[c_max_clients];
@@ -113,7 +88,7 @@ void main()
 			int flags = 0;
 			SOCKADDR_IN from;
 			int from_size = sizeof(from);
-			int bytes_received = recvfrom(sock, buffer, c_socket_buffer_size, flags, (SOCKADDR*)&from, &from_size);
+			int bytes_received = recvfrom(sock, (char*)buffer, c_socket_buffer_size, flags, (SOCKADDR*)&from, &from_size);
 			
 			if (bytes_received == SOCKET_ERROR)
 			{
@@ -154,7 +129,7 @@ void main()
 						memcpy(&buffer[2], &slot, 2);
 
 						flags = 0;
-						if (sendto(sock, buffer, 4, flags, (SOCKADDR*)&from, from_size) != SOCKET_ERROR)
+						if (sendto(sock, (const char*)buffer, 4, flags, (SOCKADDR*)&from, from_size) != SOCKET_ERROR)
 						{
 							client_endpoints[slot] = from_endpoint;
 							time_since_heard_from_clients[slot] = 0.0f;
@@ -172,7 +147,7 @@ void main()
 						buffer[1] = 0;
 
 						flags = 0;
-						if (sendto(sock, buffer, 2, flags, (SOCKADDR*)&from, from_size) == SOCKET_ERROR)
+						if (sendto(sock, (const char*)buffer, 2, flags, (SOCKADDR*)&from, from_size) == SOCKET_ERROR)
 						{
 							printf("sendto failed: %d\n", WSAGetLastError());
 						}
@@ -298,7 +273,7 @@ void main()
 				to.sin_addr.S_un.S_addr = client_endpoints[i].address;
 				to.sin_port = client_endpoints[i].port;
 
-				if (sendto(sock, buffer, bytes_written, flags, (SOCKADDR*)&to, to_length) == SOCKET_ERROR)
+				if (sendto(sock, (const char*)buffer, bytes_written, flags, (SOCKADDR*)&to, to_length) == SOCKET_ERROR)
 				{
 					printf("sendto failed: %d\n", WSAGetLastError());
 				}
