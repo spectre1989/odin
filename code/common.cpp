@@ -31,11 +31,6 @@ enum class Server_Message : uint8
 	State 		// tell client game state
 };
 
-struct Player_State
-{
-	float32 x, y, facing, speed;
-};
-
 
 static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
 {

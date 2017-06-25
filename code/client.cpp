@@ -2,6 +2,7 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan\vulkan.h>
 #include <windows.h>
+#include <time.h>
 
 #include "common.cpp"
 
@@ -90,6 +91,19 @@ LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, L
 	}
 
 	return DefWindowProc( window_handle, message, w_param, l_param );
+}
+
+// todo(jbr) logging system
+static void log_warning(const char* msg)
+{
+	OutputDebugStringA(msg);
+}
+
+static void log_warning(const char* fmt, int arg)
+{
+	char buffer[256];
+	sprintf_s(buffer, sizeof(buffer), fmt, arg);
+	OutputDebugStringA(buffer);
 }
 
 int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cmd_line*/, int cmd_show )
@@ -669,22 +683,59 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	for(uint32 i = 0; i < c_num_vertices; ++i)
 	{
-		// hdc y axis points down
-		float x = 0.0f, y = 0.0f;
-		uint32 type = i % 4;
-		if(type == 0 || type == 1) x = -0.4f;
-		else x = 0.4f;
-		if(type == 1 || type == 2) y = 0.4f;
-		else y = -0.4f;
-
-		float g = 0.0f;
-		if(type == 1 || type == 2) g = 1.0f;
-
 		vertices[i] = {};
-		vertices[i].pos_x = x;
-		vertices[i].pos_y = y;
-		vertices[i].col_r = 1.0f;
-		vertices[i].col_g = g;
+	}
+
+	// initialise colours for each client
+	srand((unsigned int)time(0));
+	for (uint32 i = 0; i < c_max_clients; ++i)
+	{
+		float32 r = 0.0f;
+		float32 g = 0.0f;
+		float32 b = 0.0f;
+
+		float32 temp = (float32)(rand() % 100) / 100.0f;
+
+		switch (rand() % 6)
+		{
+			case 0:
+				r = 1.0f;
+				g = temp;
+			break;
+
+			case 1:
+				r = temp;
+				g = 1.0f;
+			break;
+
+			case 2:
+				g = 1.0f;
+				b = temp;
+			break;
+
+			case 3:
+				g = temp;
+				b = 1.0f;
+			break;
+
+			case 4:
+				r = 1.0f;
+				b = temp;
+			break;
+
+			case 5:
+				r = temp;
+				b = 1.0f;
+			break;
+		}
+
+		uint32 start_verts = i * 4;
+		for (uint32 j = 0; j < 4; ++j)
+		{
+			vertices[start_verts + j].col_r = r;
+			vertices[start_verts + j].col_g = g;
+			vertices[start_verts + j].col_b = b;
+		}
 	}
 
 	VkBufferCreateInfo buffer_create_info = {};
@@ -696,8 +747,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	VkBuffer vertex_buffer;
 	VkDeviceMemory vertex_buffer_memory;
 	create_buffer(physical_device, device, &buffer_create_info, &vertex_buffer, &vertex_buffer_memory);
-
-	copy_to_buffer(device, vertex_buffer_memory, (void*)vertices, c_vertex_data_size);
 
 	// Create index buffer
 	constexpr uint32 c_num_indices = 6 * c_max_clients;
@@ -791,7 +840,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	WSADATA winsock_data;
 	if (WSAStartup(winsock_version, &winsock_data))
 	{
-		printf("WSAStartup failed: %d\n", WSAGetLastError());
+		log_warning("WSAStartup failed: %d\n", WSAGetLastError());
 		return 0;
 	}
 
@@ -803,23 +852,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	if (sock == INVALID_SOCKET)
 	{
-		printf("socket failed: %d\n", WSAGetLastError());
-		return 0;
-	}
-
-	SOCKADDR_IN local_address;
-	local_address.sin_family = AF_INET;
-	local_address.sin_port = htons(c_port);
-	local_address.sin_addr.s_addr = INADDR_ANY;
-	if (bind(sock, (SOCKADDR*)&local_address, sizeof(local_address)) == SOCKET_ERROR)
-	{
-		printf("bind failed: %d\n", WSAGetLastError());
+		log_warning("socket failed: %d\n", WSAGetLastError());
 		return 0;
 	}
 
 	// put socket in non-blocking mode
 	u_long enabled = 1;
 	ioctlsocket(sock, FIONBIO, &enabled);
+
+	struct Player_State
+	{
+		float32 x, y, facing;
+	};
+	Player_State objects[c_max_clients];
+	uint32 num_objects = 0;
 
 	UINT sleep_granularity_ms = 1;
 	bool32 sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
@@ -828,17 +874,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	QueryPerformanceFrequency(&clock_frequency);
 
 	uint8 buffer[c_socket_buffer_size];
-	//Player_State objects[c_max_clients];
 	SOCKADDR_IN server_address;
 	server_address.sin_family = AF_INET;
 	server_address.sin_port = htons(c_port);
-	server_address.sin_addr.S_un.S_addr = (127 << 24) | 1;
+	server_address.sin_addr.S_un.S_un_b.s_b1 = 127;
+	server_address.sin_addr.S_un.S_un_b.s_b2 = 0;
+	server_address.sin_addr.S_un.S_un_b.s_b3 = 0;
+	server_address.sin_addr.S_un.S_un_b.s_b4 = 1;
 	int server_address_size = sizeof(server_address);
 
 	buffer[0] = (uint8)Client_Message::Join;
 	if (sendto(sock, (const char*)buffer, 1, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
 	{
-		printf("sendto failed: %d\n", WSAGetLastError());
+		log_warning("sendto failed: %d\n", WSAGetLastError());
 	}
 	uint16 slot = 0xFFFF;
 
@@ -875,7 +923,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				int error = WSAGetLastError();
 				if (error != WSAEWOULDBLOCK)
 				{
-					printf("recvfrom returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
+					log_warning("recvfrom returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
 				}
 				
 				break;
@@ -891,13 +939,32 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					}
 					else
 					{
-						printf("server didn't let us in\n");
+						log_warning("server didn't let us in\n");
 					}
 				}
 				break;
 
 				case Server_Message::State:
 				{
+					num_objects = 0;
+					int bytes_read = 1;
+					while (bytes_read < bytes_received)
+					{
+						uint16 id; // unused
+						memcpy(&id, &buffer[bytes_read], sizeof(id));
+						bytes_read += sizeof(id);
+
+						memcpy(&objects[num_objects].x, &buffer[bytes_read], sizeof(objects[num_objects].x));
+						bytes_read += sizeof(objects[num_objects].x);
+
+						memcpy(&objects[num_objects].y, &buffer[bytes_read], sizeof(objects[num_objects].y));
+						bytes_read += sizeof(objects[num_objects].y);
+
+						memcpy(&objects[num_objects].facing, &buffer[bytes_read], sizeof(objects[num_objects].facing));
+						bytes_read += sizeof(objects[num_objects].facing);
+
+						++num_objects;
+					}
 				}
 				break;
 			}
@@ -905,6 +972,32 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// Draw
+		for (uint32 i = 0; i < num_objects; ++i)
+		{
+			constexpr float32 size = 0.05f;
+			float32 x = objects[i].x * 0.1f;
+			float32 y = objects[i].y * 0.1f;
+
+			uint32 verts_start = i * 4;
+			vertices[verts_start].pos_x = x - size; // TL (hdc y is +ve down screen)
+			vertices[verts_start].pos_y = y - size;
+			vertices[verts_start + 1].pos_x = x - size; // BL
+			vertices[verts_start + 1].pos_y = y + size;
+			vertices[verts_start + 2].pos_x = x + size; // BR
+			vertices[verts_start + 2].pos_y = y + size;
+			vertices[verts_start + 3].pos_x = x + size; // TR
+			vertices[verts_start + 3].pos_y = y - size;
+		}
+		for (uint32 i = num_objects; i < c_max_clients; ++i)
+		{
+			uint32 verts_start = i * 4;
+			for (uint32 j = 0; j < 4; ++j)
+			{
+				vertices[verts_start + j].pos_x = vertices[verts_start + j].pos_y = 0.0f;
+			}
+		}
+		copy_to_buffer(device, vertex_buffer_memory, (void*)vertices, c_vertex_data_size);
+
 		uint32 image_index;
 	    result = vkAcquireNextImageKHR(device, swapchain, (uint64)-1, image_available_semaphore, 0, &image_index);
 	    assert(result == VK_SUCCESS);

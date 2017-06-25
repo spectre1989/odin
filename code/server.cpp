@@ -22,6 +22,11 @@ struct Player_Input
 	bool32 up, down, left, right;
 };
 
+struct Player_State
+{
+	float32 x, y, facing, speed;
+};
+
 
 void main()
 {
