@@ -32,6 +32,10 @@ enum class Server_Message : uint8
 };
 
 
+#ifndef RELEASE
+#define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
+#endif
+
 static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
 {
 	LARGE_INTEGER now;
