@@ -108,7 +108,7 @@ void main()
 
 			IP_Endpoint from_endpoint;
 			from_endpoint.address = from.sin_addr.S_un.S_addr;
-			from_endpoint.port = from.sin_port;
+			from_endpoint.port = ntohs(from.sin_port);
 
 			switch (buffer[0])
 			{
@@ -276,7 +276,7 @@ void main()
 			if (client_endpoints[i].address)
 			{
 				to.sin_addr.S_un.S_addr = client_endpoints[i].address;
-				to.sin_port = client_endpoints[i].port;
+				to.sin_port = htons(client_endpoints[i].port);
 
 				if (sendto(sock, (const char*)buffer, bytes_written, flags, (SOCKADDR*)&to, to_length) == SOCKET_ERROR)
 				{

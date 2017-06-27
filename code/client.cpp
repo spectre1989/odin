@@ -6,12 +6,40 @@
 
 #include "common.cpp"
 
+struct Input
+{
+	bool32 up, down, left, right;
+};
+
 static bool32 g_is_running;
+static Input g_input;
 static FILE* g_log_file;
 
 #ifndef RELEASE
 #define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
 #endif
+
+static void update_input(WPARAM keycode, bool32 value)
+{
+	switch (keycode)
+	{
+		case 'A':
+			g_input.left = value;
+		break;
+
+		case 'D':
+			g_input.right = value;
+		break;
+
+		case 'W':
+			g_input.up = value;
+		break;
+
+		case 'S':
+			g_input.down = value;
+		break;
+	}
+}
 
 // the return value indicates whether the calling layer should abort the vulkan call
 static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/, 
@@ -82,11 +110,19 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
 {
-	switch( message )
+	switch (message)
 	{
 		case WM_QUIT:
 		case WM_DESTROY:
 			g_is_running = 0;
+		break;
+
+		case WM_KEYDOWN:
+			update_input(w_param, 1);
+		break;
+
+		case WM_KEYUP:
+			update_input(w_param, 0);
 		break;
 	}
 
@@ -917,7 +953,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			SOCKADDR_IN from;
 			int from_size = sizeof(from);
 			int bytes_received = recvfrom(sock, (char*)buffer, c_socket_buffer_size, flags, (SOCKADDR*)&from, &from_size);
-			
+
 			if (bytes_received == SOCKET_ERROR)
 			{
 				int error = WSAGetLastError();
@@ -970,13 +1006,35 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			}
 		}
 
+		// Send input
+		if (slot != 0xFFFF)
+		{
+			buffer[0] = (uint8)Client_Message::Input;
+			int bytes_written = 1;
+
+			memcpy(&buffer[bytes_written], &slot, sizeof(slot));
+			bytes_written += sizeof(slot);
+
+			uint8 input = 	(uint8)g_input.up | 
+							((uint8)g_input.down << 1) | 
+							((uint8)g_input.left << 2) | 
+							((uint8)g_input.right << 3);
+			buffer[bytes_written] = input;
+			++bytes_written;
+
+			if (sendto(sock, (const char*)buffer, bytes_written, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
+			{
+				log_warning("sendto failed: %d\n", WSAGetLastError());
+			}			
+		}
+
 
 		// Draw
 		for (uint32 i = 0; i < num_objects; ++i)
 		{
 			constexpr float32 size = 0.05f;
-			float32 x = objects[i].x * 0.1f;
-			float32 y = objects[i].y * 0.1f;
+			float32 x = objects[i].x * 0.01f;
+			float32 y = objects[i].y * 0.01f;
 
 			uint32 verts_start = i * 4;
 			vertices[verts_start].pos_x = x - size; // TL (hdc y is +ve down screen)
