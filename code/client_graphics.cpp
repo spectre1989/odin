@@ -40,7 +40,10 @@ static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/,
 	if( !g_log_file )
 	{
 		errno_t error = fopen_s( &g_log_file, "log.txt", "w" );
-		assert( !error );
+		if (error)
+		{
+			return VK_FALSE;
+		}
 	}
 
 	fprintf( g_log_file, "Vulkan:[%s]%s\n", layerPrefix, msg );
