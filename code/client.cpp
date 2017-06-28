@@ -1,8 +1,10 @@
-#include <windows.h>
-#include <time.h>
-
 #include "common.cpp"
+#include "common_net.cpp"
 #include "client_graphics.cpp"
+
+#include "client_net.cpp"
+
+#include <time.h>
 
 
 struct Input
@@ -13,6 +15,11 @@ struct Input
 static bool32 g_is_running;
 static Input g_input;
 
+
+static void log_warning(const char* msg)
+{
+	OutputDebugStringA(msg);
+}
 
 static void update_input(WPARAM keycode, bool32 value)
 {
@@ -57,19 +64,6 @@ LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, L
 	return DefWindowProc( window_handle, message, w_param, l_param );
 }
 
-// todo(jbr) logging system
-static void log_warning(const char* msg)
-{
-	OutputDebugStringA(msg);
-}
-
-static void log_warning(const char* fmt, int arg)
-{
-	char buffer[256];
-	sprintf_s(buffer, sizeof(buffer), fmt, arg);
-	OutputDebugStringA(buffer);
-}
-
 int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cmd_line*/, int cmd_show )
 {
 	WNDCLASS window_class;
@@ -89,8 +83,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	assert( window_class_atom );
 
 
-	uint32 window_width = 1280;
-	uint32 window_height = 720;
+	constexpr uint32 c_window_width = 1280;
+	constexpr uint32 c_window_height = 720;
 
 	HWND window_handle;
 	{
@@ -102,7 +96,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		HMENU 	menu 			= 0;
 		LPVOID 	param 			= 0;
 
-		window_handle 			= CreateWindow( window_class.lpszClassName, window_name, style, x, y, window_width, window_height, parent_window, menu, instance, param );
+		window_handle 			= CreateWindow( window_class.lpszClassName, window_name, style, x, y, c_window_width, c_window_height, parent_window, menu, instance, param );
 
 		assert( window_handle );
 	}
@@ -182,32 +176,31 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state;
-	Graphics::init(window_handle, instance, window_width, window_height, c_num_vertices, indices, c_num_indices, &graphics_state);
+	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &graphics_state);
 
 	// init winsock
-	WORD winsock_version = 0x202;
-	WSADATA winsock_data;
-	if (WSAStartup(winsock_version, &winsock_data))
+	if (!Net::init())
 	{
-		log_warning("WSAStartup failed: %d\n", WSAGetLastError());
+		log_warning("Net::init failed\n");
+		return 0;
+	}
+	Net::Socket sock;
+	if (!Net::socket_create(&sock))
+	{
+		log_warning("create_socket failed\n");
 		return 0;
 	}
 
-	// todo( jbr ) make sure internal socket buffer is big enough
-	int address_family = AF_INET;
-	int type = SOCK_DGRAM;
-	int protocol = IPPROTO_UDP;
-	SOCKET sock = socket(address_family, type, protocol);
+	uint8 buffer[c_socket_buffer_size];
+	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 
-	if (sock == INVALID_SOCKET)
+	buffer[0] = (uint8)Client_Message::Join;
+	if (!Net::socket_send(&sock, buffer, 1, &server_endpoint))
 	{
-		log_warning("socket failed: %d\n", WSAGetLastError());
+		log_warning("join message failed to send\n");
 		return 0;
 	}
 
-	// put socket in non-blocking mode
-	u_long enabled = 1;
-	ioctlsocket(sock, FIONBIO, &enabled);
 
 	struct Player_State
 	{
@@ -215,31 +208,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	};
 	Player_State objects[c_max_clients];
 	uint32 num_objects = 0;
-
-	UINT sleep_granularity_ms = 1;
-	bool32 sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
-
-	LARGE_INTEGER clock_frequency;
-	QueryPerformanceFrequency(&clock_frequency);
-
-	uint8 buffer[c_socket_buffer_size];
-	SOCKADDR_IN server_address;
-	server_address.sin_family = AF_INET;
-	server_address.sin_port = htons(c_port);
-	server_address.sin_addr.S_un.S_un_b.s_b1 = 127;
-	server_address.sin_addr.S_un.S_un_b.s_b2 = 0;
-	server_address.sin_addr.S_un.S_un_b.s_b3 = 0;
-	server_address.sin_addr.S_un.S_un_b.s_b4 = 1;
-	int server_address_size = sizeof(server_address);
-
-	buffer[0] = (uint8)Client_Message::Join;
-	if (sendto(sock, (const char*)buffer, 1, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
-	{
-		log_warning("sendto failed: %d\n", WSAGetLastError());
-	}
 	uint16 slot = 0xFFFF;
 
+	Timing_Info timing_info = timing_info_create();
 
+	
 	// main loop
 	g_is_running = 1;
 	while( g_is_running )
@@ -260,24 +233,10 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// Process Packets
-		while (true)
+		Net::IP_Endpoint from;
+		uint32 bytes_received;
+		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &from, &bytes_received))
 		{
-			int flags = 0;
-			SOCKADDR_IN from;
-			int from_size = sizeof(from);
-			int bytes_received = recvfrom(sock, (char*)buffer, c_socket_buffer_size, flags, (SOCKADDR*)&from, &from_size);
-
-			if (bytes_received == SOCKET_ERROR)
-			{
-				int error = WSAGetLastError();
-				if (error != WSAEWOULDBLOCK)
-				{
-					log_warning("recvfrom returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
-				}
-				
-				break;
-			}
-
 			switch (buffer[0])
 			{
 				case Server_Message::Join_Result:
@@ -296,7 +255,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				case Server_Message::State:
 				{
 					num_objects = 0;
-					int bytes_read = 1;
+					uint32 bytes_read = 1;
 					while (bytes_read < bytes_received)
 					{
 						uint16 id; // unused
@@ -335,9 +294,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			buffer[bytes_written] = input;
 			++bytes_written;
 
-			if (sendto(sock, (const char*)buffer, bytes_written, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
+			if (!Net::socket_send(&sock, buffer, bytes_written, &server_endpoint))
 			{
-				log_warning("sendto failed: %d\n", WSAGetLastError());
+				log_warning("socket_send failed\n");
 			}			
 		}
 
@@ -369,22 +328,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 		Graphics::update_and_draw(vertices, c_num_vertices, &graphics_state);
 
-		// wait until tick complete
-		float32 time_taken_s = time_since(tick_start_time, clock_frequency);
 
-		while (time_taken_s < c_seconds_per_tick)
-		{
-			if (sleep_granularity_was_set)
-			{
-				DWORD time_to_wait_ms = (DWORD)((c_seconds_per_tick - time_taken_s) * 1000);
-				if(time_to_wait_ms > 0)
-				{
-					Sleep(time_to_wait_ms);
-				}
-			}
-
-			time_taken_s = time_since(tick_start_time, clock_frequency);
-		}
+		wait_for_tick_end(tick_start_time, &timing_info);
 	}
 
 	// todo( jbr ) return wParam of WM_QUIT

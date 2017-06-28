@@ -1,3 +1,7 @@
+#include <winsock2.h>
+#include <windows.h>
+#include <stdio.h>
+
 typedef unsigned long long uint64;
 typedef unsigned int uint32;
 typedef unsigned short uint16;
@@ -32,9 +36,24 @@ enum class Server_Message : uint8
 };
 
 
+struct Timing_Info
+{
+	LARGE_INTEGER clock_frequency;
+	bool32 sleep_granularity_was_set;
+};
+
+
 #ifndef RELEASE
 #define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
 #endif
+
+// todo(jbr) logging system
+static void log_warning(const char* fmt, int arg)
+{
+	char buffer[256];
+	sprintf_s(buffer, sizeof(buffer), fmt, arg);
+	OutputDebugStringA(buffer);
+}
 
 static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
 {
@@ -42,4 +61,35 @@ static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
 	QueryPerformanceCounter(&now);
 
 	return (float32)(now.QuadPart - t.QuadPart) / (float32)frequency.QuadPart;
+}
+
+static Timing_Info timing_info_create()
+{
+	Timing_Info timing_info = {};
+
+	UINT sleep_granularity_ms = 1;
+	timing_info.sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
+
+	QueryPerformanceFrequency(&timing_info.clock_frequency);
+
+	return timing_info;
+}
+
+static void wait_for_tick_end(LARGE_INTEGER tick_start_time, Timing_Info* timing_info)
+{
+	float32 time_taken_s = time_since(tick_start_time, timing_info->clock_frequency);
+
+	while (time_taken_s < c_seconds_per_tick)
+	{
+		if (timing_info->sleep_granularity_was_set)
+		{
+			DWORD time_to_wait_ms = (DWORD)((c_seconds_per_tick - time_taken_s) * 1000);
+			if(time_to_wait_ms > 0)
+			{
+				Sleep(time_to_wait_ms);
+			}
+		}
+
+		time_taken_s = time_since(tick_start_time, timing_info->clock_frequency);
+	}
 }
