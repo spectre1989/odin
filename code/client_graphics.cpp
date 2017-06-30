@@ -8,11 +8,11 @@ namespace Graphics
 
 struct Vertex
 {
-	float pos_x;
-	float pos_y;
-	float col_r;
-	float col_g;
-	float col_b;
+	float32 pos_x;
+	float32 pos_y;
+	float32 col_r;
+	float32 col_g;
+	float32 col_b;
 };
 
 struct State // todo(jbr) better name for this?
