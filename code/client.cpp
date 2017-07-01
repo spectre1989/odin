@@ -332,6 +332,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		wait_for_tick_end(tick_start_time, &timing_info);
 	}
 
+	buffer[0] = (uint8)Client_Message::Leave;
+	int bytes_written = 1;
+	memcpy(&buffer[bytes_written], &slot, sizeof(slot));
+	Net::socket_send(&sock, buffer, bytes_written, &server_endpoint);
+
 	// todo( jbr ) return wParam of WM_QUIT
 	return 0;
 }

@@ -126,7 +126,14 @@ void main()
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
 						client_endpoints[slot] = {};
-						printf("Client_Message::Leave from %hu(%u:%hu)\n", slot, from.address, from.port);
+						printf("Client_Message::Leave from %hu(%u:%hu)\n", 
+							slot, from.address, from.port);
+					}
+					else
+					{
+						printf("Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)", 
+							slot, from.address, from.port, 
+							client_endpoints[slot].address, client_endpoints[slot].port);
 					}
 				}
 				break;
