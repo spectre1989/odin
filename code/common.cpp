@@ -10,7 +10,7 @@ typedef long long int64;
 typedef int int32;
 typedef short int16;
 typedef char int8;
-typedef int bool32;
+typedef int32 bool32;
 typedef float float32;
 typedef double float64;
 
