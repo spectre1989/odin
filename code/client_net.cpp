@@ -47,10 +47,11 @@ static bool packet_buffer_push(Packet_Buffer* packet_buffer, LARGE_INTEGER time,
 		return false;
 	}
 
-	packet_buffer->times[packet_buffer->tail] = time;
-	packet_buffer->packet_sizes[packet_buffer->tail] = packet_size;
-	packet_buffer->endpoints[packet_buffer->tail] = *endpoint;
-	memcpy(packet_buffer->packets[packet_buffer->tail], packet, packet_size);
+	uint32 tail = packet_buffer->tail % c_packet_buffer_size;
+	packet_buffer->times[tail] = time;
+	packet_buffer->packet_sizes[tail] = packet_size;
+	packet_buffer->endpoints[tail] = *endpoint;
+	memcpy(packet_buffer->packets[tail], packet, packet_size);
 
 	++packet_buffer->tail;
 
@@ -65,15 +66,16 @@ static bool packet_buffer_pop(Packet_Buffer* packet_buffer, uint8* out_packet, u
 	}
 
 	LARGE_INTEGER now;
-	QueryPerformanceFrequency(&now);
+	QueryPerformanceCounter(&now);
 
-	if (packet_buffer->times[packet_buffer->head].QuadPart <= now.QuadPart)
+	uint32 head = packet_buffer->head % c_packet_buffer_size;
+	if (packet_buffer->times[head].QuadPart <= now.QuadPart)
 	{
 		memcpy(out_packet, 
-			packet_buffer->packets[packet_buffer->head], 
-			packet_buffer->packet_sizes[packet_buffer->head]);
-		*out_packet_size = packet_buffer->packet_sizes[packet_buffer->head];
-		*out_endpoint = packet_buffer->endpoints[packet_buffer->head];
+			packet_buffer->packets[head], 
+			packet_buffer->packet_sizes[head]);
+		*out_packet_size = packet_buffer->packet_sizes[head];
+		*out_endpoint = packet_buffer->endpoints[head];
 
 		++packet_buffer->head;
 
@@ -103,7 +105,7 @@ static LARGE_INTEGER fake_socket_get_packet_time(Fake_Socket* fake_socket)
 	QueryPerformanceFrequency(&clock_frequency);
 
 	LARGE_INTEGER now;
-	QueryPerformanceFrequency(&now);
+	QueryPerformanceCounter(&now);
 
 	LARGE_INTEGER then;
 	then.QuadPart = now.QuadPart + (LONGLONG)(clock_frequency.QuadPart * fake_socket->latency_s);
