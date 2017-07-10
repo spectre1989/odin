@@ -157,10 +157,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		log_warning("Net::init failed\n");
 		return 0;
 	}
-	Net::Socket sock;
-	if (!Net::socket_create(&sock))
+	constexpr float32 fake_latency_s = 0.2f; // 200ms
+	Net::Fake_Socket sock;
+	if (!Net::fake_socket_create(fake_latency_s, &sock))
 	{
-		log_warning("create_socket failed\n");
+		log_warning("fake_socket_create failed\n");
 		return 0;
 	}
 
@@ -168,7 +169,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 
 	buffer[0] = (uint8)Client_Message::Join;
-	if (!Net::socket_send(&sock, buffer, 1, &server_endpoint))
+	if (!Net::fake_socket_send(&sock, buffer, 1, &server_endpoint))
 	{
 		log_warning("join message failed to send\n");
 		return 0;
@@ -205,10 +206,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 
 
+		// Update fake socket
+		// todo(jbr) use ifdef to allow easy toggling of fake lag
+		Net::fake_socket_update(&sock, buffer, c_socket_buffer_size);
+
 		// Process Packets
 		Net::IP_Endpoint from;
 		uint32 bytes_received;
-		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &from, &bytes_received))
+		while (Net::fake_socket_receive(&sock, buffer, &from, &bytes_received))
 		{
 			switch (buffer[0])
 			{
@@ -267,7 +272,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			buffer[bytes_written] = input;
 			++bytes_written;
 
-			if (!Net::socket_send(&sock, buffer, bytes_written, &server_endpoint))
+			if (!Net::fake_socket_send(&sock, buffer, bytes_written, &server_endpoint))
 			{
 				log_warning("socket_send failed\n");
 			}			
@@ -308,7 +313,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	buffer[0] = (uint8)Client_Message::Leave;
 	int bytes_written = 1;
 	memcpy(&buffer[bytes_written], &slot, sizeof(slot));
-	Net::socket_send(&sock, buffer, bytes_written, &server_endpoint);
+	Net::socket_send(&sock.sock, buffer, bytes_written, &server_endpoint);
 
 	// todo( jbr ) return wParam of WM_QUIT
 	return 0;
