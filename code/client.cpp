@@ -110,44 +110,17 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		// generate colour for client
-		float32 r = 0.0f;
-		float32 g = 0.0f;
-		float32 b = 0.0f;
+		float32 rgb[3] = {0.0f, 0.0f, 0.0f};
 
-		float32 temp = (float32)(rand() % 100) / 100.0f;
+		// for a fully saturated colour, need 1 component at 1, and a second
+		// component at <= 1, and the third must be zero
+		int32 component = rand() % 3;
+		rgb[component] = 1.0f;
 
-		switch (rand() % 6)
-		{
-			case 0:
-				r = 1.0f;
-				g = temp;
-			break;
-
-			case 1:
-				r = temp;
-				g = 1.0f;
-			break;
-
-			case 2:
-				g = 1.0f;
-				b = temp;
-			break;
-
-			case 3:
-				g = temp;
-				b = 1.0f;
-			break;
-
-			case 4:
-				r = 1.0f;
-				b = temp;
-			break;
-
-			case 5:
-				r = temp;
-				b = 1.0f;
-			break;
-		}
+		component += rand() % 2 ? 1 : -1;
+		if(component < 0) component += 3;
+		else if(component > 2) component -= 3;
+		rgb[component] = (float32)(rand() % 100) / 100.0f;
 
 		// assign colour to all 4 verts, and zero positions to begin with
 		uint32 start_verts = i * 4;
@@ -155,9 +128,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		{
 			vertices[start_verts + j].pos_x = 0.0f;
 			vertices[start_verts + j].pos_y = 0.0f;
-			vertices[start_verts + j].col_r = r;
-			vertices[start_verts + j].col_g = g;
-			vertices[start_verts + j].col_b = b;
+			vertices[start_verts + j].col_r = rgb[0];
+			vertices[start_verts + j].col_g = rgb[1];
+			vertices[start_verts + j].col_b = rgb[2];
 		}
 	}
 
