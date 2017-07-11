@@ -1,9 +1,8 @@
 #include <math.h>
 
+#define SERVER
 #include "common.cpp"
 #include "common_net.cpp"
-
-#include "server_net.cpp"
 
 constexpr float32 c_turn_speed 		= 1.0f;	// how fast player turns
 constexpr float32 c_acceleration 	= 20.0f;
@@ -66,9 +65,9 @@ void main()
 		QueryPerformanceCounter(&tick_start_time);
 
 		// read all available packets
-		Net::IP_Endpoint from;
 		uint32 bytes_received;
-		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &from, &bytes_received))
+		Net::IP_Endpoint from;
+		while (Net::socket_receive(&sock, buffer, &bytes_received, &from))
 		{
 			switch (buffer[0])
 			{
@@ -244,4 +243,6 @@ void main()
 
 		wait_for_tick_end(tick_start_time, &timing_info);
 	}
+
+	Net::socket_close(&sock);
 }

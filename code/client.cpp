@@ -1,10 +1,10 @@
+#include <time.h>
+
+#define CLIENT
 #include "common.cpp"
+#define FAKE_LAG
 #include "common_net.cpp"
 #include "client_graphics.cpp"
-
-#include "client_net.cpp"
-
-#include <time.h>
 
 
 struct Input
@@ -184,11 +184,10 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		log_warning("Net::init failed\n");
 		return 0;
 	}
-	constexpr float32 fake_latency_s = 0.2f; // 200ms
-	Net::Fake_Socket sock;
-	if (!Net::fake_socket_create(fake_latency_s, &sock))
+	Net::Socket sock;
+	if (!Net::socket_create(&sock))
 	{
-		log_warning("fake_socket_create failed\n");
+		log_warning("socket_create failed\n");
 		return 0;
 	}
 
@@ -196,7 +195,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 
 	buffer[0] = (uint8)Client_Message::Join;
-	if (!Net::fake_socket_send(&sock, buffer, 1, &server_endpoint))
+	if (!Net::socket_send(&sock, buffer, 1, &server_endpoint))
 	{
 		log_warning("join message failed to send\n");
 		return 0;
@@ -216,7 +215,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	
 	// main loop
 	g_is_running = 1;
-	while( g_is_running )
+	while (g_is_running)
 	{
 		LARGE_INTEGER tick_start_time;
 		QueryPerformanceCounter(&tick_start_time);
@@ -226,27 +225,23 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		UINT filter_min = 0;
 		UINT filter_max = 0;
 		UINT remove_message = PM_REMOVE;
-		while( PeekMessage( &message, window_handle, filter_min, filter_max, remove_message ) )
+		while (PeekMessage(&message, window_handle, filter_min, filter_max, remove_message))
 		{
 			TranslateMessage( &message );
 			DispatchMessage( &message );
 		}
 
 
-		// Update fake socket
-		// todo(jbr) use ifdef to allow easy toggling of fake lag
-		Net::fake_socket_update(&sock, buffer, c_socket_buffer_size);
-
 		// Process Packets
-		Net::IP_Endpoint from;
 		uint32 bytes_received;
-		while (Net::fake_socket_receive(&sock, buffer, &from, &bytes_received))
+		Net::IP_Endpoint from;
+		while (Net::socket_receive(&sock, buffer, &bytes_received, &from))
 		{
 			switch (buffer[0])
 			{
 				case Server_Message::Join_Result:
 				{
-					if(buffer[1])
+					if (buffer[1])
 					{
 						memcpy(&slot, &buffer[2], sizeof(slot));
 					}
@@ -299,7 +294,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			buffer[bytes_written] = input;
 			++bytes_written;
 
-			if (!Net::fake_socket_send(&sock, buffer, bytes_written, &server_endpoint))
+			if (!Net::socket_send(&sock, buffer, bytes_written, &server_endpoint))
 			{
 				log_warning("socket_send failed\n");
 			}			
@@ -340,7 +335,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	buffer[0] = (uint8)Client_Message::Leave;
 	int bytes_written = 1;
 	memcpy(&buffer[bytes_written], &slot, sizeof(slot));
-	Net::socket_send(&sock.sock, buffer, bytes_written, &server_endpoint);
+	Net::socket_send(&sock, buffer, bytes_written, &server_endpoint);
+	Net::socket_close(&sock);
 
 	// todo( jbr ) return wParam of WM_QUIT
 	return 0;

@@ -44,7 +44,7 @@ struct Timing_Info
 
 
 #ifndef RELEASE
-#define assert( x ) if( !( x ) ) { MessageBoxA( 0, #x, "Debug Assertion Failed", MB_OK ); }
+#define assert( x ) if( !( x ) ) { int* p = 0; *p = 0; }
 #endif
 
 // todo(jbr) logging system

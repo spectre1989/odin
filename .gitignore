@@ -5,5 +5,5 @@
 *.spv
 *.suo
 
-client/Library
 log.txt
+build/.vs/
