@@ -1,6 +1,5 @@
 #include <math.h>
 
-#define SERVER
 #include "common.cpp"
 #include "common_net.cpp"
 

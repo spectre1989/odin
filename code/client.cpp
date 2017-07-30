@@ -1,6 +1,5 @@
 #include <time.h>
 
-#define CLIENT
 #include "common.cpp"
 #define FAKE_LAG
 #include "common_net.cpp"

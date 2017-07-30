@@ -22,7 +22,6 @@ static bool init()
 	return true;
 }
 
-#ifdef CLIENT // only used by client code, this removes compiler warning
 static IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port)
 {
 	IP_Endpoint ip_endpoint = {};
@@ -30,9 +29,7 @@ static IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16
 	ip_endpoint.port = port;
 	return ip_endpoint;
 }
-#endif // ifdef CLIENT
 
-#ifdef SERVER // only used by server code, this removes compiler warning
 static bool ip_endpoint_equal(IP_Endpoint* a, IP_Endpoint* b)
 {
 	return a->address == b->address && a->port == b->port;
@@ -46,7 +43,6 @@ static SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint)
 	sockaddr_in.sin_port = htons(ip_endpoint->port);
 	return sockaddr_in;
 }
-#endif // ifdef SERVER
 
 
 // Socket stuff in its own section here, so fake lag stuff can be easily ifdefed in/out
@@ -97,7 +93,6 @@ static void socket_close(Socket* sock)
 	assert(result != SOCKET_ERROR);
 }
 
-#ifdef SERVER // only used by server code, this removes compiler warning
 static bool socket_bind(Socket* sock, IP_Endpoint* local_endpoint)
 {
 	SOCKADDR_IN local_address = ip_endpoint_to_sockaddr_in(local_endpoint);
@@ -109,7 +104,6 @@ static bool socket_bind(Socket* sock, IP_Endpoint* local_endpoint)
 
 	return true;
 }
-#endif // ifdef SERVER
 
 static bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint)
 {

@@ -44,7 +44,9 @@ struct Timing_Info
 
 
 #ifndef RELEASE
-#define assert( x ) if( !( x ) ) { int* p = 0; *p = 0; }
+#define assert(x) if (!(x)) { int* p = 0; *p = 0; }
+#else
+#define assert(x)
 #endif
 
 // todo(jbr) logging system
