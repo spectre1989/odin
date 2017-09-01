@@ -6,13 +6,9 @@
 #include "client_graphics.cpp"
 
 
-struct Input
-{
-	bool32 up, down, left, right;
-};
 
 static bool32 g_is_running;
-static Input g_input;
+static Player_Input g_input;
 
 
 static void log_warning(const char* msg)
@@ -174,11 +170,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	struct Player_State
+	struct Player_Visual_State
 	{
 		float32 x, y, facing;
 	};
-	Player_State objects[c_max_clients];
+	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
 	uint16 slot = 0xFFFF;
 

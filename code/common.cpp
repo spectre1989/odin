@@ -1,6 +1,7 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <stdio.h>
+#include <math.h>
 
 typedef unsigned long long uint64;
 typedef unsigned int uint32;
@@ -15,11 +16,14 @@ typedef float float32;
 typedef double float64;
 
 
-constexpr uint16 	c_port = 9999;
+constexpr uint16 	c_port 				= 9999;
 constexpr uint32 	c_socket_buffer_size = 1024;
 constexpr uint16	c_max_clients 		= 32;
 constexpr uint32	c_ticks_per_second 	= 60;
 constexpr float32	c_seconds_per_tick 	= 1.0f / (float32)c_ticks_per_second;
+constexpr float32 	c_turn_speed 		= 1.0f;	// how fast player turns
+constexpr float32 	c_acceleration 		= 20.0f;
+constexpr float32 	c_max_speed 		= 50.0f;
 
 
 enum class Client_Message : uint8
@@ -40,6 +44,16 @@ struct Timing_Info
 {
 	LARGE_INTEGER clock_frequency;
 	bool32 sleep_granularity_was_set;
+};
+
+struct Player_Input
+{
+	bool32 up, down, left, right;
+};
+
+struct Player_State
+{
+	float32 x, y, facing, speed;
 };
 
 
@@ -94,4 +108,36 @@ static void wait_for_tick_end(LARGE_INTEGER tick_start_time, Timing_Info* timing
 
 		time_taken_s = time_since(tick_start_time, timing_info->clock_frequency);
 	}
+}
+
+// todo(jbr) pass many players and inputs
+static void tick_player(Player_State* player_state, Player_Input* player_input)
+{
+	if (player_input->up)
+	{
+		player_state->speed += c_acceleration * c_seconds_per_tick;
+		if (player_state->speed > c_max_speed)
+		{
+			player_state->speed = c_max_speed;
+		}
+	}
+	if (player_input->down)
+	{
+		player_state->speed -= c_acceleration * c_seconds_per_tick;
+		if (player_state->speed < 0.0f)
+		{
+			player_state->speed = 0.0f;
+		}
+	}
+	if (player_input->left)
+	{
+		player_state->facing -= c_turn_speed * c_seconds_per_tick;
+	}
+	if (player_input->right)
+	{
+		player_state->facing += c_turn_speed * c_seconds_per_tick;
+	}
+
+	player_state->x += player_state->speed * c_seconds_per_tick * sinf(player_state->facing);
+	player_state->y += player_state->speed * c_seconds_per_tick * cosf(player_state->facing);
 }

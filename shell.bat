@@ -1,3 +1,19 @@
-set VULKAN_SDK_PATH=C:\VulkanSDK\1.0.51.0
-set INCLUDE=%VULKAN_SDK_PATH%\Include;%INCLUDE%
-"C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+@echo off
+
+if not defined VULKAN_SDK (
+	echo VULKAN_SDK environment variable not found
+) else ( 
+	set INCLUDE="%VULKAN_SDK%\Include;%INCLUDE%" 
+)
+
+if defined VS150COMNTOOLS (
+	echo Visual Studio 2017 detected
+	"%VS150COMNTOOLS%..\..\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
+) else (
+	if defined VS140COMNTOOLS (
+		echo Visual Studio 2015 detected
+		"%VS140COMNTOOLS%..\..\VC\vcvarsall.bat" x64
+	) else (
+		echo couldn't find Visual Studio installation, VSXX0COMNTOOLS environment variable not found
+	)
+)

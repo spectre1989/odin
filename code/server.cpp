@@ -1,23 +1,9 @@
-#include <math.h>
-
 #include "common.cpp"
 #include "common_net.cpp"
 
-constexpr float32 c_turn_speed 		= 1.0f;	// how fast player turns
-constexpr float32 c_acceleration 	= 20.0f;
-constexpr float32 c_max_speed 		= 50.0f;
+
 constexpr float32 c_client_timeout 	= 5.0f;
 
-
-struct Player_Input
-{
-	bool32 up, down, left, right;
-};
-
-struct Player_State
-{
-	float32 x, y, facing, speed;
-};
 
 
 void main()
@@ -170,33 +156,7 @@ void main()
 		{
 			if (client_endpoints[i].address)
 			{
-				if (client_inputs[i].up)
-				{
-					client_objects[i].speed += c_acceleration * c_seconds_per_tick;
-					if (client_objects[i].speed > c_max_speed)
-					{
-						client_objects[i].speed = c_max_speed;
-					}
-				}
-				if (client_inputs[i].down)
-				{
-					client_objects[i].speed -= c_acceleration * c_seconds_per_tick;
-					if (client_objects[i].speed < 0.0f)
-					{
-						client_objects[i].speed = 0.0f;
-					}
-				}
-				if (client_inputs[i].left)
-				{
-					client_objects[i].facing -= c_turn_speed * c_seconds_per_tick;
-				}
-				if (client_inputs[i].right)
-				{
-					client_objects[i].facing += c_turn_speed * c_seconds_per_tick;
-				}
-
-				client_objects[i].x += client_objects[i].speed * c_seconds_per_tick * sinf(client_objects[i].facing);
-				client_objects[i].y += client_objects[i].speed * c_seconds_per_tick * cosf(client_objects[i].facing);
+				tick_player(&client_objects[i], &client_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
