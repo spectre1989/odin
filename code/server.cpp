@@ -56,7 +56,7 @@ void main()
 		{
 			switch (buffer[0])
 			{
-				case Client_Message::Join:
+				case Net::Client_Message::Join:
 				{
 					printf("Client_Message::Join from %u:%hu\n", from.address, from.port);
 
@@ -70,14 +70,14 @@ void main()
 						}
 					}
 
-					buffer[0] = (int8)Server_Message::Join_Result;
+					
 					if (slot != (uint16)-1)
 					{
 						printf("client will be assigned to slot %hu\n", slot);
-						buffer[1] = 1;
-						memcpy(&buffer[2], &slot, 2);
 
-						if (Net::socket_send(&sock, buffer, 4, &from))
+						bool32 success = true;
+						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
+						if (Net::socket_send(&sock, buffer, join_result_msg_size, &from))
 						{
 							client_endpoints[slot] = from;
 							time_since_heard_from_clients[slot] = 0.0f;
@@ -92,9 +92,10 @@ void main()
 					else
 					{
 						printf("could not find a slot for player\n");
-						buffer[1] = 0;
-
-						if (!Net::socket_send(&sock, buffer, 2, &from))
+						
+						bool32 success = false;
+						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
+						if (!Net::socket_send(&sock, buffer, join_result_msg_size, &from))
 						{
 							printf("sendto failed: %d\n", WSAGetLastError());
 						}
@@ -102,10 +103,10 @@ void main()
 				}
 				break;
 
-				case Client_Message::Leave:
+				case Net::Client_Message::Leave:
 				{
 					uint16 slot;
-					memcpy(&slot, &buffer[1], 2);
+					Net::client_msg_leave_read(buffer, &slot);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
@@ -122,25 +123,16 @@ void main()
 				}
 				break;
 
-				case Client_Message::Input:
+				case Net::Client_Message::Input:
 				{
 					uint16 slot;
-					memcpy(&slot, &buffer[1], 2);
-
-					printf("%d %hu\n", bytes_received, slot);
+					Player_Input input;
+					Net::client_msg_input_read(buffer, &slot, &input);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
-						uint8 input = buffer[3];
-
-						client_inputs[slot].up = input & 0x1;
-						client_inputs[slot].down = input & 0x2;
-						client_inputs[slot].left = input & 0x4;
-						client_inputs[slot].right = input & 0x8;
-
+						client_inputs[slot] = input;
 						time_since_heard_from_clients[slot] = 0.0f;
-
-						printf("Client_Message::Input from %hu:%d\n", slot, (int32)input);
 					}
 					else
 					{
@@ -168,32 +160,14 @@ void main()
 		}
 		
 		// create state packet
-		buffer[0] = (int8)Server_Message::State;
-		int32 bytes_written = 1;
-		for (uint16 i = 0; i < c_max_clients; ++i)
-		{
-			if (client_endpoints[i].address)
-			{
-				memcpy(&buffer[bytes_written], &i, sizeof(i));
-				bytes_written += sizeof(i);
-
-				memcpy(&buffer[bytes_written], &client_objects[i].x, sizeof(client_objects[i].x));
-				bytes_written += sizeof(client_objects[i].x);
-
-				memcpy(&buffer[bytes_written], &client_objects[i].y, sizeof(client_objects[i].y));
-				bytes_written += sizeof(client_objects[i].y);
-
-				memcpy(&buffer[bytes_written], &client_objects[i].facing, sizeof(client_objects[i].facing));
-				bytes_written += sizeof(client_objects[i].facing);
-			}
-		}
+		uint32 state_msg_size = Net::server_msg_state_write(buffer, client_endpoints, client_objects, c_max_clients);
 
 		// send back to clients
 		for (uint16 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
-				if (!Net::socket_send(&sock, buffer, bytes_written, &client_endpoints[i]))
+				if (!Net::socket_send(&sock, buffer, state_msg_size, &client_endpoints[i]))
 				{
 					printf("sendto failed: %d\n", WSAGetLastError());
 				}

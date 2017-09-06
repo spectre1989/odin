@@ -162,21 +162,18 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	uint8 buffer[c_socket_buffer_size];
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 
-	buffer[0] = (uint8)Client_Message::Join;
-	if (!Net::socket_send(&sock, buffer, 1, &server_endpoint))
+	uint32 join_msg_size = Net::client_msg_join_write(buffer);
+	if (!Net::socket_send(&sock, buffer, join_msg_size, &server_endpoint))
 	{
 		log_warning("join message failed to send\n");
 		return 0;
 	}
 
 
-	struct Player_Visual_State
-	{
-		float32 x, y, facing;
-	};
+	
 	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
-	uint16 slot = 0xFFFF;
+	uint16 slot = 0xFFFF; // todo(jbr) use 32 bit ints where possible
 
 	Timing_Info timing_info = timing_info_create();
 
@@ -207,40 +204,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		{
 			switch (buffer[0])
 			{
-				case Server_Message::Join_Result:
+				case Net::Server_Message::Join_Result:
 				{
-					if (buffer[1])
-					{
-						memcpy(&slot, &buffer[2], sizeof(slot));
-					}
-					else
+					bool32 success;
+					Net::server_msg_join_result_read(buffer, &success, &slot);
+					if (!success)
 					{
 						log_warning("server didn't let us in\n");
 					}
 				}
 				break;
 
-				case Server_Message::State:
+				case Net::Server_Message::State:
 				{
-					num_objects = 0;
-					uint32 bytes_read = 1;
-					while (bytes_read < bytes_received)
-					{
-						uint16 id; // unused
-						memcpy(&id, &buffer[bytes_read], sizeof(id));
-						bytes_read += sizeof(id);
-
-						memcpy(&objects[num_objects].x, &buffer[bytes_read], sizeof(objects[num_objects].x));
-						bytes_read += sizeof(objects[num_objects].x);
-
-						memcpy(&objects[num_objects].y, &buffer[bytes_read], sizeof(objects[num_objects].y));
-						bytes_read += sizeof(objects[num_objects].y);
-
-						memcpy(&objects[num_objects].facing, &buffer[bytes_read], sizeof(objects[num_objects].facing));
-						bytes_read += sizeof(objects[num_objects].facing);
-
-						++num_objects;
-					}
+					Net::server_msg_state_read(buffer, objects, c_max_clients, &num_objects);
 				}
 				break;
 			}
@@ -249,20 +226,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		// Send input
 		if (slot != 0xFFFF)
 		{
-			buffer[0] = (uint8)Client_Message::Input;
-			int bytes_written = 1;
-
-			memcpy(&buffer[bytes_written], &slot, sizeof(slot));
-			bytes_written += sizeof(slot);
-
-			uint8 input = 	(uint8)g_input.up | 
-							((uint8)g_input.down << 1) | 
-							((uint8)g_input.left << 2) | 
-							((uint8)g_input.right << 3);
-			buffer[bytes_written] = input;
-			++bytes_written;
-
-			if (!Net::socket_send(&sock, buffer, bytes_written, &server_endpoint))
+			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input);
+			if (!Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint))
 			{
 				log_warning("socket_send failed\n");
 			}			
@@ -300,10 +265,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		wait_for_tick_end(tick_start_time, &timing_info);
 	}
 
-	buffer[0] = (uint8)Client_Message::Leave;
-	int bytes_written = 1;
-	memcpy(&buffer[bytes_written], &slot, sizeof(slot));
-	Net::socket_send(&sock, buffer, bytes_written, &server_endpoint);
+	uint32 leave_msg_size = Net::client_msg_leave_write(buffer, slot);
+	Net::socket_send(&sock, buffer, leave_msg_size, &server_endpoint);
 	Net::socket_close(&sock);
 
 	// todo( jbr ) return wParam of WM_QUIT

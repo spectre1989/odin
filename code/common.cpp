@@ -26,18 +26,6 @@ constexpr float32 	c_acceleration 		= 20.0f;
 constexpr float32 	c_max_speed 		= 50.0f;
 
 
-enum class Client_Message : uint8
-{
-	Join,		// tell server we're new here
-	Leave,		// tell server we're leaving
-	Input 		// tell server our user input
-};
-
-enum class Server_Message : uint8
-{
-	Join_Result,// tell client they're accepted/rejected
-	State 		// tell client game state
-};
 
 
 struct Timing_Info
@@ -54,6 +42,11 @@ struct Player_Input
 struct Player_State
 {
 	float32 x, y, facing, speed;
+};
+
+struct Player_Visual_State
+{
+	float32 x, y, facing;
 };
 
 

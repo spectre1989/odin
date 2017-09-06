@@ -305,4 +305,133 @@ static bool socket_receive(Socket* sock, uint8* buffer, uint32* out_packet_size,
 #endif // #ifdef FAKE_LAG
 
 
+enum class Client_Message : uint8
+{
+	Join,		// tell server we're new here
+	Leave,		// tell server we're leaving
+	Input 		// tell server our user input
+};
+
+uint32 client_msg_join_write(uint8* buffer)
+{
+	buffer[0] = (uint8)Client_Message::Join;
+	return 1;
+}
+
+uint32 client_msg_leave_write(uint8* buffer, uint16 slot)
+{
+	buffer[0] = (uint8)Client_Message::Leave;
+	memcpy(&buffer[1], &slot, sizeof(slot));
+	return 1 + sizeof(slot);
+}
+void client_msg_leave_read(uint8* buffer, uint16* out_slot)
+{
+	assert(buffer[0] == (uint8)Client_Message::Leave);
+	memcpy(out_slot, &buffer[1], sizeof(*out_slot));
+}
+
+uint32 client_msg_input_write(uint8* buffer, uint16 slot, Player_Input* input)
+{
+	uint8 packed_input =	(uint8)(input->up ? 1 : 0) | 
+							(uint8)(input->down ? 1 << 1 : 0) | 
+							(uint8)(input->left ? 1 << 2 : 0) | 
+							(uint8)(input->right ? 1 << 3 : 0);
+
+	buffer[0] = (uint8)Client_Message::Input;
+	memcpy(&buffer[1], &slot, 2);
+	buffer[3] = packed_input;
+	return 4;
+}
+void client_msg_input_read(uint8* buffer, uint16* slot, Player_Input* out_input)
+{
+	assert(buffer[0] == (uint8)Client_Message::Input);
+
+	memcpy(slot, &buffer[1], 2);
+
+	out_input->up = buffer[3] & 1;
+	out_input->down = buffer[3] & 1 << 1;
+	out_input->left = buffer[3] & 1 << 2;
+	out_input->right = buffer[3] & 1 << 3;
+}
+
+enum class Server_Message : uint8
+{
+	Join_Result,// tell client they're accepted/rejected
+	State 		// tell client game state
+};
+
+uint32 server_msg_join_result_write(uint8* buffer, bool32 success, uint16 slot)
+{
+	buffer[0] = (uint8)Server_Message::Join_Result;
+	buffer[1] = success ? 1 : 0;
+
+	if (success)
+	{
+		memcpy(&buffer[2], &slot, sizeof(slot));
+		return 2 + sizeof(slot);
+	}
+
+	return 2;
+}
+void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint16* out_slot)
+{
+	assert(buffer[0] == (uint8)Server_Message::Join_Result);
+
+	if (buffer[1])
+	{
+		*out_success = true;
+		memcpy(out_slot, &buffer[2], sizeof(*out_slot));
+	}
+	else
+	{
+		*out_success = false;
+	}
+}
+
+uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players)
+{
+	buffer[0] = (uint8)Server_Message::State;
+	buffer[1] = (uint8)num_players;
+
+	uint32 bytes_written = 2;
+	for (uint32 i = 0; i < num_players; ++i)
+	{
+		if (player_endpoints[i].address)
+		{
+			memcpy(&buffer[bytes_written], &player_states[i].x, sizeof(player_states[i].x));
+			bytes_written += sizeof(player_states[i].x);
+
+			memcpy(&buffer[bytes_written], &player_states[i].y, sizeof(player_states[i].y));
+			bytes_written += sizeof(player_states[i].y);
+
+			memcpy(&buffer[bytes_written], &player_states[i].facing, sizeof(player_states[i].facing));
+			bytes_written += sizeof(player_states[i].facing);
+		}
+	}
+
+	return bytes_written;
+}
+void server_msg_state_read(uint8* buffer, Player_Visual_State* player_states, uint32 num_player_states, uint32* out_num_player_states_received)
+{
+	assert(buffer[0] == (uint8)Server_Message::State);
+
+	uint32 num_player_states_received = (uint32)buffer[1];
+
+	uint32 bytes_read = 2;
+	for (uint32 i = 0; i < num_player_states_received && i < num_player_states; ++i)
+	{
+		memcpy(&player_states[i].x, &buffer[bytes_read], sizeof(player_states[i].x));
+		bytes_read += sizeof(player_states[i].x);
+
+		memcpy(&player_states[i].y, &buffer[bytes_read], sizeof(player_states[i].y));
+		bytes_read += sizeof(player_states[i].y);
+
+		memcpy(&player_states[i].facing, &buffer[bytes_read], sizeof(player_states[i].facing));
+		bytes_read += sizeof(player_states[i].facing);
+	}
+
+	*out_num_player_states_received = num_player_states_received;
+}
+
+
 } // namespace Net
