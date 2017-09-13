@@ -318,20 +318,23 @@ uint32 client_msg_join_write(uint8* buffer)
 	return 1;
 }
 
-uint32 client_msg_leave_write(uint8* buffer, uint16 slot)
+uint32 client_msg_leave_write(uint8* buffer, uint32 slot)
 {
 	buffer[0] = (uint8)Client_Message::Leave;
-	memcpy(&buffer[1], &slot, sizeof(slot));
-	return 1 + sizeof(slot);
+	memcpy(&buffer[1], &slot, 2);
+
+	return 3;
 }
-void client_msg_leave_read(uint8* buffer, uint16* out_slot)
+void client_msg_leave_read(uint8* buffer, uint32* out_slot)
 {
 	assert(buffer[0] == (uint8)Client_Message::Leave);
-	memcpy(out_slot, &buffer[1], sizeof(*out_slot));
+
+	memcpy(out_slot, &buffer[1], 2);
 }
 
-uint32 client_msg_input_write(uint8* buffer, uint16 slot, Player_Input* input)
+uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input)
 {
+	// if up/down/left/right are non-zero they're not necessarily 1
 	uint8 packed_input =	(uint8)(input->up ? 1 : 0) | 
 							(uint8)(input->down ? 1 << 1 : 0) | 
 							(uint8)(input->left ? 1 << 2 : 0) | 
@@ -340,9 +343,10 @@ uint32 client_msg_input_write(uint8* buffer, uint16 slot, Player_Input* input)
 	buffer[0] = (uint8)Client_Message::Input;
 	memcpy(&buffer[1], &slot, 2);
 	buffer[3] = packed_input;
+
 	return 4;
 }
-void client_msg_input_read(uint8* buffer, uint16* slot, Player_Input* out_input)
+void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* out_input)
 {
 	assert(buffer[0] == (uint8)Client_Message::Input);
 
@@ -360,40 +364,37 @@ enum class Server_Message : uint8
 	State 		// tell client game state
 };
 
-uint32 server_msg_join_result_write(uint8* buffer, bool32 success, uint16 slot)
+uint32 server_msg_join_result_write(uint8* buffer, bool32 success, uint32 slot)
 {
 	buffer[0] = (uint8)Server_Message::Join_Result;
 	buffer[1] = success ? 1 : 0;
 
 	if (success)
 	{
-		memcpy(&buffer[2], &slot, sizeof(slot));
-		return 2 + sizeof(slot);
+		memcpy(&buffer[2], &slot, 2);
+		return 4;
 	}
 
 	return 2;
 }
-void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint16* out_slot)
+void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint32* out_slot)
 {
 	assert(buffer[0] == (uint8)Server_Message::Join_Result);
 
-	if (buffer[1])
+	*out_success = buffer[1];
+	if (*out_success)
 	{
-		*out_success = true;
-		memcpy(out_slot, &buffer[2], sizeof(*out_slot));
-	}
-	else
-	{
-		*out_success = false;
+		memcpy(out_slot, &buffer[2], 2);
 	}
 }
 
 uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players)
 {
 	buffer[0] = (uint8)Server_Message::State;
-	buffer[1] = (uint8)num_players;
 
-	uint32 bytes_written = 2;
+	memcpy(&buffer[1], &num_players, 2);
+
+	uint32 bytes_written = 3;
 	for (uint32 i = 0; i < num_players; ++i)
 	{
 		if (player_endpoints[i].address)
@@ -415,9 +416,10 @@ void server_msg_state_read(uint8* buffer, Player_Visual_State* player_states, ui
 {
 	assert(buffer[0] == (uint8)Server_Message::State);
 
-	uint32 num_player_states_received = (uint32)buffer[1];
+	uint32 num_player_states_received;
+	memcpy(&num_player_states_received, &buffer[1], 2);
 
-	uint32 bytes_read = 2;
+	uint32 bytes_read = 3;
 	for (uint32 i = 0; i < num_player_states_received && i < num_player_states; ++i)
 	{
 		memcpy(&player_states[i].x, &buffer[bytes_read], sizeof(player_states[i].x));

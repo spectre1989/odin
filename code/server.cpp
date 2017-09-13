@@ -38,7 +38,7 @@ void main()
 	Player_State client_objects[c_max_clients];
 	Player_Input client_inputs[c_max_clients];
 
-	for (uint16 i = 0; i < c_max_clients; ++i)
+	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		client_endpoints[i] = {};
 	}
@@ -60,8 +60,8 @@ void main()
 				{
 					printf("Client_Message::Join from %u:%hu\n", from.address, from.port);
 
-					uint16 slot = (uint16)-1;
-					for (uint16 i = 0; i < c_max_clients; ++i)
+					uint32 slot = (uint32)-1;
+					for (uint32 i = 0; i < c_max_clients; ++i)
 					{
 						if (client_endpoints[i].address == 0)
 						{
@@ -71,7 +71,7 @@ void main()
 					}
 
 					
-					if (slot != (uint16)-1)
+					if (slot != (uint32)-1)
 					{
 						printf("client will be assigned to slot %hu\n", slot);
 
@@ -105,7 +105,7 @@ void main()
 
 				case Net::Client_Message::Leave:
 				{
-					uint16 slot;
+					uint32 slot;
 					Net::client_msg_leave_read(buffer, &slot);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
@@ -125,7 +125,7 @@ void main()
 
 				case Net::Client_Message::Input:
 				{
-					uint16 slot;
+					uint32 slot;
 					Player_Input input;
 					Net::client_msg_input_read(buffer, &slot, &input);
 
@@ -144,7 +144,7 @@ void main()
 		}
 		
 		// process input and update state
-		for (uint16 i = 0; i < c_max_clients; ++i)
+		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
@@ -163,7 +163,7 @@ void main()
 		uint32 state_msg_size = Net::server_msg_state_write(buffer, client_endpoints, client_objects, c_max_clients);
 
 		// send back to clients
-		for (uint16 i = 0; i < c_max_clients; ++i)
+		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{

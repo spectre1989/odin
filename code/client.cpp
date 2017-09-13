@@ -173,7 +173,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	
 	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
-	uint16 slot = 0xFFFF; // todo(jbr) use 32 bit ints where possible
+	uint32 slot = (uint32)-1;
 
 	Timing_Info timing_info = timing_info_create();
 
