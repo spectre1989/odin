@@ -11,7 +11,7 @@ static bool32 g_is_running;
 static Player_Input g_input;
 
 
-static void log_callback(const char* format, va_list args)
+static void log_v(const char* format, va_list args)
 {
 	char buffer[512];
 	vsnprintf(buffer, 512, format, args);
@@ -22,7 +22,7 @@ static void log(const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
-	log_callback(format, args);
+	log_v(format, args);
 	va_end(args);
 }
 
@@ -154,9 +154,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state;
-	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_callback, &graphics_state);
+	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &graphics_state);
 
-	if (!Net::init(&log_callback))
+	if (!Net::init(&log_v))
 	{
 		return 0;
 	}
@@ -230,7 +230,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 
 		// Send input
-		if (slot != 0xFFFF)
+		if (slot != (uint32)-1)
 		{
 			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input);
 			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);		

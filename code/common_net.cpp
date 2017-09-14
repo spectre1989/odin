@@ -180,7 +180,7 @@ static bool socket_receive(Socket* sock, uint8* buffer, uint32* out_packet_size,
 // 200ms fake lag
 constexpr float32 c_fake_lag_s = 0.2f; 
 // we get send/receive 1 packet per tick, add some extra just in case
-constexpr uint32 c_packet_buffer_size = (uint32)(c_fake_lag_s * c_ticks_per_second * 1.1f); 
+constexpr uint32 c_packet_buffer_size = (uint32)(c_fake_lag_s * c_ticks_per_second) + 4; 
 
 struct Packet_Buffer
 {
@@ -352,6 +352,7 @@ void client_msg_leave_read(uint8* buffer, uint32* out_slot)
 {
 	assert(buffer[0] == (uint8)Client_Message::Leave);
 
+	*out_slot = 0;
 	memcpy(out_slot, &buffer[1], 2);
 }
 
@@ -373,6 +374,7 @@ void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* out_input)
 {
 	assert(buffer[0] == (uint8)Client_Message::Input);
 
+	*slot = 0;
 	memcpy(slot, &buffer[1], 2);
 
 	out_input->up = buffer[3] & 1;
@@ -407,6 +409,7 @@ void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint32* out
 	*out_success = buffer[1];
 	if (*out_success)
 	{
+		*out_slot = 0;
 		memcpy(out_slot, &buffer[2], 2);
 	}
 }
@@ -415,13 +418,14 @@ uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Play
 {
 	buffer[0] = (uint8)Server_Message::State;
 
-	memcpy(&buffer[1], &num_players, 2);
-
+	uint32 num_actual_players = 0;
 	uint32 bytes_written = 3;
 	for (uint32 i = 0; i < num_players; ++i)
 	{
 		if (player_endpoints[i].address)
 		{
+			++num_actual_players;
+
 			memcpy(&buffer[bytes_written], &player_states[i].x, sizeof(player_states[i].x));
 			bytes_written += sizeof(player_states[i].x);
 
@@ -433,13 +437,15 @@ uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Play
 		}
 	}
 
+	memcpy(&buffer[1], &num_actual_players, 2);
+
 	return bytes_written;
 }
 void server_msg_state_read(uint8* buffer, Player_Visual_State* player_states, uint32 num_player_states, uint32* out_num_player_states_received)
 {
 	assert(buffer[0] == (uint8)Server_Message::State);
 
-	uint32 num_player_states_received;
+	uint32 num_player_states_received = 0;
 	memcpy(&num_player_states_received, &buffer[1], 2);
 
 	uint32 bytes_read = 3;

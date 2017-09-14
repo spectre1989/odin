@@ -4,17 +4,22 @@
 
 constexpr float32 c_client_timeout 	= 5.0f;
 
+static void log_v(const char* format, va_list args)
+{
+	vprintf(format, args);
+}
+
 static void log(const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
-	vprintf(format, args);
+	log_v(format, args);
 	va_end(args);
 }
 
 void main()
 {
-	if (!Net::init(&log))
+	if (!Net::init(&log_v))
 	{
 		return;
 	}
