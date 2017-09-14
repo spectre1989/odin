@@ -2,7 +2,7 @@
 ## A Multiplayer Game Built From Scratch
 
 ### Requirements
-Vulkan SDK, and Visual Studio 2017. Note: Paths to Vulkan and MSVC are hardcoded in shell.bat, if you have issues building then you may need to edit that batch file.
+Vulkan SDK, and Visual Studio. Note: If you have issues building then the problem will likely be in shell.bat.
 
 ### To build/run the server
 * Navigate to repo in command prompt
