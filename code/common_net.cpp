@@ -15,7 +15,7 @@ static void log(const char* format, ...)
 	// todo(jbr) define out this call in release
 	va_list args;
 	va_start(args, format);
-	gp_log_function(format, args);
+	(*gp_log_function)(format, args);
 	va_end(args);
 }
 
@@ -25,7 +25,7 @@ static void log_null(const char*, va_list)
 
 static bool init(Log_Function* p_log_function)
 {
-	if (gp_log_function)
+	if (p_log_function)
 	{
 		gp_log_function = p_log_function;
 	}
