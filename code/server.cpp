@@ -4,20 +4,24 @@
 
 constexpr float32 c_client_timeout 	= 5.0f;
 
-
+static void log(const char* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+}
 
 void main()
 {
-	if (!Net::init())
+	if (!Net::init(&log))
 	{
-		printf("Net::init failed\n");
 		return;
 	}
 
 	Net::Socket sock;
 	if (!Net::socket_create(&sock))
 	{
-		printf("socket_create failed\n");
 		return;
 	}
 
@@ -26,7 +30,6 @@ void main()
 	local_endpoint.port = c_port;
 	if (!Net::socket_bind(&sock, &local_endpoint))
 	{
-		printf("socket_bind failed");
 		return;
 	}
 
@@ -43,6 +46,7 @@ void main()
 		client_endpoints[i] = {};
 	}
 
+	uint32 tick_number = 0;
 	bool32 is_running = 1;
 	while (is_running)
 	{
@@ -58,7 +62,7 @@ void main()
 			{
 				case Net::Client_Message::Join:
 				{
-					printf("Client_Message::Join from %u:%hu\n", from.address, from.port);
+					log("[server] Client_Message::Join from %u:%hu\n", from.address, from.port);
 
 					uint32 slot = (uint32)-1;
 					for (uint32 i = 0; i < c_max_clients; ++i)
@@ -73,7 +77,7 @@ void main()
 					
 					if (slot != (uint32)-1)
 					{
-						printf("client will be assigned to slot %hu\n", slot);
+						log("[server] client will be assigned to slot %hu\n", slot);
 
 						bool32 success = true;
 						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
@@ -84,21 +88,14 @@ void main()
 							client_objects[slot] = {};
 							client_inputs[slot] = {};
 						}
-						else
-						{
-							printf("sendto failed: %d\n", WSAGetLastError());
-						}
 					}
 					else
 					{
-						printf("could not find a slot for player\n");
+						log("[server] could not find a slot for player\n");
 						
 						bool32 success = false;
 						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
-						if (!Net::socket_send(&sock, buffer, join_result_msg_size, &from))
-						{
-							printf("sendto failed: %d\n", WSAGetLastError());
-						}
+						Net::socket_send(&sock, buffer, join_result_msg_size, &from);
 					}
 				}
 				break;
@@ -111,12 +108,12 @@ void main()
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
 						client_endpoints[slot] = {};
-						printf("Client_Message::Leave from %hu(%u:%hu)\n", 
+						log("[server] Client_Message::Leave from %hu(%u:%hu)\n", 
 							slot, from.address, from.port);
 					}
 					else
 					{
-						printf("Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)", 
+						log("[server] Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)", 
 							slot, from.address, from.port, 
 							client_endpoints[slot].address, client_endpoints[slot].port);
 					}
@@ -136,7 +133,7 @@ void main()
 					}
 					else
 					{
-						printf("Client_Message::Input discarded, was from %u:%hu but expected %u:%hu\n", from.address, from.port, client_endpoints[slot].address, client_endpoints[slot].port);
+						log("[server] Client_Message::Input discarded, was from %u:%hu but expected %u:%hu\n", from.address, from.port, client_endpoints[slot].address, client_endpoints[slot].port);
 					}
 				}
 				break;
@@ -153,7 +150,7 @@ void main()
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
 				{
-					printf("client %hu timed out\n", i);
+					log("[server] client %hu timed out\n", i);
 					client_endpoints[i] = {};
 				}
 			}
@@ -169,12 +166,14 @@ void main()
 			{
 				if (!Net::socket_send(&sock, buffer, state_msg_size, &client_endpoints[i]))
 				{
-					printf("sendto failed: %d\n", WSAGetLastError());
+					log("[server] sendto failed: %d\n", WSAGetLastError());
 				}
 			}
 		}
 
 		wait_for_tick_end(tick_start_time, &timing_info);
+
+		++tick_number;
 	}
 
 	Net::socket_close(&sock);

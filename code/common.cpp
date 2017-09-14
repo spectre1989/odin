@@ -28,6 +28,8 @@ constexpr float32 	c_max_speed 		= 50.0f;
 
 
 
+typedef void (*Log_Function)(const char* format, va_list args);
+
 struct Timing_Info
 {
 	LARGE_INTEGER clock_frequency;
@@ -56,13 +58,7 @@ struct Player_Visual_State
 #define assert(x)
 #endif
 
-// todo(jbr) logging system
-static void log_warning(const char* fmt, int arg)
-{
-	char buffer[256];
-	sprintf_s(buffer, sizeof(buffer), fmt, arg);
-	OutputDebugStringA(buffer);
-}
+
 
 static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
 {

@@ -27,27 +27,28 @@ struct State // todo(jbr) better name for this?
 	VkCommandBuffer* command_buffers;
 };
 
-static FILE* g_log_file;
 
+
+static void log(Log_Function* p_log_function, const char* format, ...)
+{
+	// todo(jbr) define out in release
+	va_list args;
+	va_start(args, format);
+	p_log_function(format, args);
+	va_end(args);
+}
 
 // the return value indicates whether the calling layer should abort the vulkan call
 static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/, 
 										VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
 										size_t /*location*/, int32_t /*code*/, 
-										const char* layerPrefix, const char* msg, void* /*userData*/) 
+										const char* layer_prefix, const char* msg, void* user_data) 
 {
-	// todo( jbr ) logging system
-	if( !g_log_file )
+	if (user_data)
 	{
-		errno_t error = fopen_s( &g_log_file, "log.txt", "w" );
-		if (error)
-		{
-			return VK_FALSE;
-		}
+		Log_Function* p_log_function = (Log_Function*)user_data;
+		log(p_log_function, "[graphics::vulkan::%s] %s\n", layer_prefix, msg);
 	}
-
-	fprintf( g_log_file, "Vulkan:[%s]%s\n", layerPrefix, msg );
-
     return VK_FALSE;
 }
 
@@ -100,7 +101,7 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, State* out_state)
+static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Callback* p_log_callback, State* out_state)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -126,6 +127,7 @@ static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, ui
 	debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 	debug_callback_create_info.pfnCallback = vulkan_debug_callback;
+	debug_callback_create_info.pUserData = p_log_callback;
 
 	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
 	assert( vkCreateDebugReportCallbackEXT );

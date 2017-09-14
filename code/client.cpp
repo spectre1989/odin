@@ -11,9 +11,19 @@ static bool32 g_is_running;
 static Player_Input g_input;
 
 
-static void log_warning(const char* msg)
+static void log_callback(const char* format, va_list args)
 {
-	OutputDebugStringA(msg);
+	char buffer[512];
+	vsnprintf(buffer, 512, format, args);
+	OutputDebugStringA(buffer);
+}
+
+static void log(const char* format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	log_callback(format, args);
+	va_end(args);
 }
 
 static void update_input(WPARAM keycode, bool32 value)
@@ -144,18 +154,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state;
-	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &graphics_state);
+	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_callback, &graphics_state);
 
-	// init winsock
-	if (!Net::init())
+	if (!Net::init(&log_callback))
 	{
-		log_warning("Net::init failed\n");
 		return 0;
 	}
 	Net::Socket sock;
 	if (!Net::socket_create(&sock))
 	{
-		log_warning("socket_create failed\n");
 		return 0;
 	}
 
@@ -165,7 +172,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	uint32 join_msg_size = Net::client_msg_join_write(buffer);
 	if (!Net::socket_send(&sock, buffer, join_msg_size, &server_endpoint))
 	{
-		log_warning("join message failed to send\n");
 		return 0;
 	}
 
@@ -210,7 +216,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					Net::server_msg_join_result_read(buffer, &success, &slot);
 					if (!success)
 					{
-						log_warning("server didn't let us in\n");
+						log("[client] server didn't let us in\n");
 					}
 				}
 				break;
@@ -227,10 +233,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		if (slot != 0xFFFF)
 		{
 			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input);
-			if (!Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint))
-			{
-				log_warning("socket_send failed\n");
-			}			
+			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);		
 		}
 
 

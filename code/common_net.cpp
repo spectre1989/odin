@@ -8,14 +8,37 @@ struct IP_Endpoint
 	uint16 port;
 };
 
+static Log_Function* gp_log_function;
 
-static bool init()
+static void log(const char* format, ...)
 {
+	// todo(jbr) define out this call in release
+	va_list args;
+	va_start(args, format);
+	gp_log_function(format, args);
+	va_end(args);
+}
+
+static void log_null(const char*, va_list)
+{
+}
+
+static bool init(Log_Function* p_log_function)
+{
+	if (gp_log_function)
+	{
+		gp_log_function = p_log_function;
+	}
+	else
+	{
+		gp_log_function = &log_null;
+	}
+
 	WORD winsock_version = 0x202;
 	WSADATA winsock_data;
 	if (WSAStartup(winsock_version, &winsock_data))
 	{
-		log_warning("WSAStartup failed: %d\n", WSAGetLastError());
+		log("[net] WSAStartup failed: %d\n", WSAGetLastError());
 		return false;
 	}
 
@@ -68,7 +91,7 @@ static bool socket_create(Socket* out_socket)
 
 	if (sock == INVALID_SOCKET)
 	{
-		log_warning("socket failed: %d\n", WSAGetLastError());
+		log("[net] socket() failed: %d\n", WSAGetLastError());
 		return false;
 	}
 
@@ -77,7 +100,7 @@ static bool socket_create(Socket* out_socket)
 	int result = ioctlsocket(sock, FIONBIO, &enabled);
 	if (result == SOCKET_ERROR)
 	{
-		log_warning("ioctlsocket failed: %d\n", WSAGetLastError());
+		log("[net] ioctlsocket() failed: %d\n", WSAGetLastError());
 		return false;
 	}
 
@@ -98,7 +121,7 @@ static bool socket_bind(Socket* sock, IP_Endpoint* local_endpoint)
 	SOCKADDR_IN local_address = ip_endpoint_to_sockaddr_in(local_endpoint);
 	if (bind(sock->handle, (SOCKADDR*)&local_address, sizeof(local_address)) == SOCKET_ERROR)
 	{
-		printf("bind failed: %d\n", WSAGetLastError());
+		log("[net] bind() failed: %d\n", WSAGetLastError());
 		return false;
 	}
 
@@ -116,7 +139,7 @@ static bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endp
 	// todo(jbr) handle failure of sendto on non-blocking sockets
 	if (sendto(sock->handle, (const char*)packet, packet_size, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
 	{
-		log_warning("sendto failed: %d\n", WSAGetLastError());
+		log("[net] sendto() failed: %d\n", WSAGetLastError());
 		return false;
 	}
 
@@ -135,7 +158,7 @@ static bool socket_receive(Socket* sock, uint8* buffer, uint32* out_packet_size,
 		int error = WSAGetLastError();
 		if (error != WSAEWOULDBLOCK)
 		{
-			log_warning("recvfrom returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
+			log("[net] recvfrom() returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
 		}
 		
 		return false;
