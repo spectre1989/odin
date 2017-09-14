@@ -100,7 +100,7 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Callback* p_log_callback, State* out_state)
+static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, State* out_state)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -126,7 +126,7 @@ static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, ui
 	debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 	debug_callback_create_info.pfnCallback = vulkan_debug_callback;
-	debug_callback_create_info.pUserData = p_log_callback;
+	debug_callback_create_info.pUserData = p_log_function;
 
 	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
 	assert( vkCreateDebugReportCallbackEXT );

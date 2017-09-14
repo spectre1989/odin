@@ -15,7 +15,7 @@ static void log(const char* format, ...)
 	// todo(jbr) define out this call in release
 	va_list args;
 	va_start(args, format);
-	(*gp_log_function)(format, args);
+	gp_log_function(format, args);
 	va_end(args);
 }
 

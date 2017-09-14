@@ -28,7 +28,7 @@ constexpr float32 	c_max_speed 		= 50.0f;
 
 
 
-typedef void (*Log_Function)(const char*, va_list);
+typedef void (Log_Function)(const char*, va_list);
 
 struct Timing_Info
 {
