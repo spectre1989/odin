@@ -180,6 +180,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
 	uint32 slot = (uint32)-1;
+	uint32 time = 0;
 
 	Timing_Info timing_info = timing_info_create();
 
@@ -232,7 +233,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		// Send input
 		if (slot != (uint32)-1)
 		{
-			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input);
+			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time);
 			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);		
 		}
 
@@ -266,6 +267,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		wait_for_tick_end(tick_start_time, &timing_info);
+
+		++time;
 	}
 
 	uint32 leave_msg_size = Net::client_msg_leave_write(buffer, slot);

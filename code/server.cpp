@@ -45,6 +45,7 @@ void main()
 	float32 time_since_heard_from_clients[c_max_clients];
 	Player_State client_objects[c_max_clients];
 	Player_Input client_inputs[c_max_clients];
+	uint32 client_times[c_max_clients];
 
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
@@ -92,6 +93,7 @@ void main()
 							time_since_heard_from_clients[slot] = 0.0f;
 							client_objects[slot] = {};
 							client_inputs[slot] = {};
+							client_times[slot] = 0;
 						}
 					}
 					else
@@ -129,11 +131,13 @@ void main()
 				{
 					uint32 slot;
 					Player_Input input;
-					Net::client_msg_input_read(buffer, &slot, &input);
+					uint32 time;
+					Net::client_msg_input_read(buffer, &slot, &input, &time);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
 						client_inputs[slot] = input;
+						client_times[slot] = time;
 						time_since_heard_from_clients[slot] = 0.0f;
 					}
 					else
