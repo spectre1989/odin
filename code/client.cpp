@@ -177,6 +177,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 	
+	Player_State my_object;
 	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
 	uint32 slot = (uint32)-1;
@@ -224,7 +225,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 				case Net::Server_Message::State:
 				{
-					Net::server_msg_state_read(buffer, objects, c_max_clients, &num_objects);
+					uint32 state_time;
+					Net::server_msg_state_read(buffer, &my_object, &state_time, objects, c_max_clients, &num_objects);
+					log("[client] RTT est %dms\n", (uint32)((time - state_time) * c_seconds_per_tick * 1000.0f));
+					// add own object to the end
+					objects[num_objects].x = my_object.x;
+					objects[num_objects].y = my_object.y;
+					objects[num_objects].facing = my_object.facing;
+					++num_objects;
 				}
 				break;
 			}

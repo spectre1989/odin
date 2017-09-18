@@ -165,14 +165,13 @@ void main()
 			}
 		}
 		
-		// create state packet
-		uint32 state_msg_size = Net::server_msg_state_write(buffer, client_endpoints, client_objects, c_max_clients);
-
-		// send back to clients
+		// create and send state packets
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
+				uint32 state_msg_size = Net::server_msg_state_write(buffer, i, client_times[i], client_endpoints, client_objects, c_max_clients);
+
 				if (!Net::socket_send(&sock, buffer, state_msg_size, &client_endpoints[i]))
 				{
 					log("[server] sendto failed: %d\n", WSAGetLastError());
