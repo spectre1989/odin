@@ -2,8 +2,8 @@
 
 #include "common.cpp"
 #define FAKE_LAG
-#include "common_net.cpp"
-#include "client_graphics.cpp"
+#include "net.cpp"
+#include "graphics.cpp"
 
 
 

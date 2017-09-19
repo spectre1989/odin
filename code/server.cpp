@@ -1,5 +1,5 @@
 #include "common.cpp"
-#include "common_net.cpp"
+#include "net.cpp"
 
 
 constexpr float32 c_client_timeout 	= 5.0f;

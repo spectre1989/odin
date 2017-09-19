@@ -1,4 +1,4 @@
-#include <winsock2.h>
+#include <winsock2.h> // must include this before windows.h
 #include <windows.h>
 #include <stdio.h>
 #include <math.h>
