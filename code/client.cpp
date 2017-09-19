@@ -1,6 +1,6 @@
 #include <time.h>
 
-#include "common.cpp"
+#include "core.cpp"
 #define FAKE_LAG
 #include "net.cpp"
 #include "graphics.cpp"
