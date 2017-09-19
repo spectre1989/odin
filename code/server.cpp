@@ -1,4 +1,4 @@
-#include "common.cpp"
+#include "core.cpp"
 #include "net.cpp"
 
 
@@ -38,26 +38,24 @@ void main()
 		return;
 	}
 
-	Timing_Info timing_info = timing_info_create();
-
 	uint8 buffer[c_socket_buffer_size];
 	Net::IP_Endpoint client_endpoints[c_max_clients];
 	float32 time_since_heard_from_clients[c_max_clients];
 	Player_State client_objects[c_max_clients];
 	Player_Input client_inputs[c_max_clients];
-	uint32 client_times[c_max_clients];
+	uint32 client_timestamps[c_max_clients];
+	uint32 tick_number = 0;
+	Timer tick_timer = timer_create();
 
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		client_endpoints[i] = {};
 	}
 
-	uint32 tick_number = 0;
 	bool32 is_running = 1;
 	while (is_running)
 	{
-		LARGE_INTEGER tick_start_time;
-		QueryPerformanceCounter(&tick_start_time);
+		timer_restart(&tick_timer);
 
 		// read all available packets
 		uint32 bytes_received;
@@ -93,7 +91,7 @@ void main()
 							time_since_heard_from_clients[slot] = 0.0f;
 							client_objects[slot] = {};
 							client_inputs[slot] = {};
-							client_times[slot] = 0;
+							client_timestamps[slot] = 0;
 						}
 					}
 					else
@@ -131,13 +129,13 @@ void main()
 				{
 					uint32 slot;
 					Player_Input input;
-					uint32 time;
-					Net::client_msg_input_read(buffer, &slot, &input, &time);
+					uint32 timestamp;
+					Net::client_msg_input_read(buffer, &slot, &input, &timestamp);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
 						client_inputs[slot] = input;
-						client_times[slot] = time;
+						client_timestamps[slot] = timestamp;
 						time_since_heard_from_clients[slot] = 0.0f;
 					}
 					else
@@ -170,7 +168,8 @@ void main()
 		{
 			if (client_endpoints[i].address)
 			{
-				uint32 state_msg_size = Net::server_msg_state_write(buffer, i, client_times[i], client_endpoints, client_objects, c_max_clients);
+				uint32 target_player = i;
+				uint32 state_msg_size = Net::server_msg_state_write(buffer, client_endpoints, client_objects, c_max_clients, tick_number, target_player, client_timestamps[target_player]);
 
 				if (!Net::socket_send(&sock, buffer, state_msg_size, &client_endpoints[i]))
 				{
@@ -179,7 +178,7 @@ void main()
 			}
 		}
 
-		wait_for_tick_end(tick_start_time, &timing_info);
+		timer_wait_until(&tick_timer, c_seconds_per_tick);
 
 		++tick_number;
 	}

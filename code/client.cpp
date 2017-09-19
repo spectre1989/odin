@@ -176,22 +176,26 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	
-	Player_State my_object;
+	Player_State me {};
+	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
+	Player_State prediction_history[c_max_predicted_ticks];
+	uint32 prediction_history_head = 0;
+	uint32 prediction_history_tail = 0;
+	uint32 prediction_history_head_tick_number = 0;
 	Player_Visual_State objects[c_max_clients];
 	uint32 num_objects = 0;
 	uint32 slot = (uint32)-1;
-	uint32 time = 0;
-
-	Timing_Info timing_info = timing_info_create();
+	uint32 tick_number = (uint32)-1;
+	uint32 target_tick_number = (uint32)-1;
+	Timer local_timer = timer_create();
+	Timer tick_timer = timer_create();
 
 	
 	// main loop
 	g_is_running = 1;
 	while (g_is_running)
 	{
-		LARGE_INTEGER tick_start_time;
-		QueryPerformanceCounter(&tick_start_time);
+		timer_restart(&tick_timer);
 
 		// Windows messages
 		MSG message;
@@ -225,24 +229,95 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 				case Net::Server_Message::State:
 				{
-					uint32 state_time;
-					Net::server_msg_state_read(buffer, &my_object, &state_time, objects, c_max_clients, &num_objects);
-					log("[client] RTT est %dms\n", (uint32)((time - state_time) * c_seconds_per_tick * 1000.0f));
-					// add own object to the end
-					objects[num_objects].x = my_object.x;
-					objects[num_objects].y = my_object.y;
-					objects[num_objects].facing = my_object.facing;
-					++num_objects;
+					uint32 state_tick_number;
+					uint32 state_timestamp;
+					Player_State state_my_object;
+					uint32 state_num_other_objects;
+					Net::server_msg_state_read(buffer, &state_tick_number, &state_my_object, &state_timestamp, objects, c_max_clients, &state_num_other_objects);
+
+					num_objects = state_num_other_objects + 1;
+
+					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
+					uint32 est_rtt_ms = time_now_ms - state_timestamp;
+					log("[client] est RTT %dms\n", est_rtt_ms);
+					
+					// predict at half rtt, plus a bit
+					// todo(jbr) better method of working out how much to predict
+					float32 est_rtt_s = est_rtt_ms / 1000.0f;
+					uint32 ticks_to_predict = (uint32)((est_rtt_s * 0.5f) / c_seconds_per_tick);
+					ticks_to_predict += 2;
+					uint32 old_target_tick_number = target_tick_number;
+					target_tick_number = state_tick_number + ticks_to_predict;
+					log("[client] state tick %d received, target predicted tick %d (was %d)\n", state_tick_number, target_tick_number, old_target_tick_number);
+
+					if (tick_number == (uint32)-1 ||
+					 	state_tick_number >= tick_number)
+					{
+						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
+						me = state_my_object;
+						tick_number = state_tick_number;
+						prediction_history_head = 0;
+						prediction_history_tail = 0;
+						prediction_history_head_tick_number = tick_number + 1;
+					}
+					else
+					{
+						uint32 prediction_history_size = prediction_history_tail > prediction_history_head ? prediction_history_tail - prediction_history_head : c_max_predicted_ticks - (prediction_history_head - prediction_history_tail);
+						while (prediction_history_size)
+						{
+							if (prediction_history_head_tick_number < state_tick_number)
+							{
+								// discard this one, not needed
+								++prediction_history_head_tick_number;
+								prediction_history_head = (prediction_history_head + 1) % c_max_predicted_ticks;
+								--prediction_history_size;
+								log("[client] discarding unneeded prediction history\n");
+							}
+							else if (prediction_history_head_tick_number == state_tick_number)
+							{
+								float32 dx = prediction_history[prediction_history_head].x - state_my_object.x;
+								float32 dy = prediction_history[prediction_history_head].y - state_my_object.y;
+								float32 error = sqrtf((dx * dx) + (dy * dy));
+								log("[client] error %f\n", error);
+								break;
+							}
+							else
+							{
+								// todo(jbr) can this happen other than when we're predicting to far? handle this
+								assert(false);
+							}
+						}
+					}
 				}
 				break;
 			}
 		}
 
-		// Send input
-		if (slot != (uint32)-1)
+
+		// tick player if we have one
+		if (slot != (uint32)-1 && 
+			tick_number != (uint32)-1)
 		{
-			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time);
-			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);		
+			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
+			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time_ms);
+			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);
+
+			while (tick_number < target_tick_number)
+			{
+				tick_player(&me, &g_input);
+				++tick_number;
+
+				// todo(jbr) detect and handle buffer being full
+				prediction_history[prediction_history_tail] = me;
+				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
+			}
+
+			++target_tick_number;
+
+			// we're always the last object in the array
+			objects[num_objects - 1].x = me.x;
+			objects[num_objects - 1].y = me.y;
+			objects[num_objects - 1].facing = me.facing;
 		}
 
 
@@ -274,9 +349,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		Graphics::update_and_draw(vertices, c_num_vertices, &graphics_state);
 
 
-		wait_for_tick_end(tick_start_time, &timing_info);
-
-		++time;
+		timer_wait_until(&tick_timer, c_seconds_per_tick);
 	}
 
 	uint32 leave_msg_size = Net::client_msg_leave_write(buffer, slot);

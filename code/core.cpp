@@ -33,11 +33,6 @@ typedef void (Log_Function)(const char*, va_list);
 struct Timer
 {
 	LARGE_INTEGER start;
-}
-struct Timing_Info
-{
-	LARGE_INTEGER clock_frequency;
-	bool32 sleep_granularity_was_set;
 };
 
 struct Player_Input

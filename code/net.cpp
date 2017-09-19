@@ -179,7 +179,7 @@ static bool socket_receive(Socket* sock, uint8* buffer, uint32* out_packet_size,
 
 // 200ms fake lag
 constexpr float32 c_fake_lag_s = 0.2f; 
-// we get send/receive 1 packet per tick, add some extra just in case
+// we send/receive 1 packet per tick, add some extra just in case
 constexpr uint32 c_packet_buffer_size = (uint32)(c_fake_lag_s * c_ticks_per_second) + 4; 
 
 struct Packet_Buffer
@@ -301,6 +301,7 @@ static void socket_update(Socket* sock, uint8* buffer)
 		assert(success);
 	}
 
+	// todo(jbr) don't call receive if we haven't sent anything yet
 	while (Internal::socket_receive(&sock->sock, buffer, &packet_size, &endpoint))
 	{
 		bool success = packet_buffer_push(&sock->receive_buffer, buffer, packet_size, &endpoint);
@@ -356,7 +357,7 @@ static void client_msg_leave_read(uint8* buffer, uint32* out_slot)
 	memcpy(out_slot, &buffer[1], 2);
 }
 
-static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, uint32 time)
+static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, uint32 timestamp)
 {
 	// if up/down/left/right are non-zero they're not necessarily 1
 	uint8 packed_input =	(uint8)(input->up ? 1 : 0) | 
@@ -367,11 +368,11 @@ static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* i
 	buffer[0] = (uint8)Client_Message::Input;
 	memcpy(&buffer[1], &slot, 2);
 	buffer[3] = packed_input;
-	memcpy(&buffer[4], &time, 4);
+	memcpy(&buffer[4], &timestamp, 4);
 
 	return 8;
 }
-static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* input, uint32* time)
+static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* input, uint32* timestamp)
 {
 	assert(buffer[0] == (uint8)Client_Message::Input);
 
@@ -383,7 +384,7 @@ static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* inp
 	input->left = buffer[3] & 1 << 2;
 	input->right = buffer[3] & 1 << 3;
 
-	memcpy(time, &buffer[4], 4);
+	memcpy(timestamp, &buffer[4], 4);
 }
 
 enum class Server_Message : uint8
@@ -417,13 +418,15 @@ static void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint
 	}
 }
 
-static uint32 server_msg_state_write(uint8* buffer, uint32 target_player, uint32 time, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players)
+static uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players, uint32 tick_number, uint32 target_player, uint32 target_player_client_timestamp)
 {
 	buffer[0] = (uint8)Server_Message::State;
 
-	memcpy(&buffer[1], &time, 4);
+	memcpy(&buffer[1], &tick_number, 4);
 
-	uint32 bytes_written = 5;
+	memcpy(&buffer[5], &target_player_client_timestamp, 4);
+
+	uint32 bytes_written = 9;
 	assert(player_endpoints[target_player].address);
 	memcpy(&buffer[bytes_written], &player_states[target_player].x, sizeof(player_states[target_player].x));
 	bytes_written += sizeof(player_states[target_player].x);
@@ -459,17 +462,20 @@ static uint32 server_msg_state_write(uint8* buffer, uint32 target_player, uint32
 }
 static void server_msg_state_read(
 	uint8* buffer, 
+	uint32* tick_number,
 	Player_State* player_state, // clients full player state
-	uint32* time, // most recent time stamp server had at the time of writing this packet
+	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
 	Player_Visual_State* additional_player_states, // visual state of other players will be stored here
 	uint32 num_additional_player_states, // max number of other players the client can handle
 	uint32* num_additional_player_states_received) // number of additional players stored here
 {
 	assert(buffer[0] == (uint8)Server_Message::State);
 
-	memcpy(time, &buffer[1], 4);
+	memcpy(tick_number, &buffer[1], 4);
 
-	uint32 bytes_read = 5;
+	memcpy(client_timestamp, &buffer[5], 4);
+
+	uint32 bytes_read = 9;
 	memcpy(&player_state->x, &buffer[bytes_read], sizeof(player_state->x));
 	bytes_read += sizeof(player_state->x);
 	memcpy(&player_state->y, &buffer[bytes_read], sizeof(player_state->y));
