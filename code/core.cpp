@@ -30,6 +30,10 @@ constexpr float32 	c_max_speed 		= 50.0f;
 
 typedef void (Log_Function)(const char*, va_list);
 
+struct Timer
+{
+	LARGE_INTEGER start;
+}
 struct Timing_Info
 {
 	LARGE_INTEGER clock_frequency;
@@ -59,43 +63,54 @@ struct Player_Visual_State
 #endif
 
 
+static LARGE_INTEGER get_clock_frequency()
+{
+	LARGE_INTEGER frequency;
+	QueryPerformanceFrequency(&frequency);
+	return frequency;
+}
+static bool try_set_sleep_granularity()
+{
+	UINT sleep_granularity_ms = 1;
+	return timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
+}
 
-static float32 time_since(LARGE_INTEGER t, LARGE_INTEGER frequency)
+static LARGE_INTEGER g_timer_clock_frequency = get_clock_frequency();
+static bool32 g_timer_sleep_granularity_was_set = try_set_sleep_granularity();
+
+static void timer_restart(Timer* timer)
+{
+	QueryPerformanceCounter(&timer->start);
+}
+static Timer timer_create()
+{
+	Timer timer = {};
+	timer_restart(&timer);
+	return timer;
+}
+static float32 timer_get_s(Timer* timer)
 {
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
-	return (float32)(now.QuadPart - t.QuadPart) / (float32)frequency.QuadPart;
+	return (float32)(now.QuadPart - timer->start.QuadPart) / (float32)g_timer_clock_frequency.QuadPart;
 }
-
-static Timing_Info timing_info_create()
+static void timer_wait_until(Timer* timer, float32 wait_time_s)
 {
-	Timing_Info timing_info = {};
+	float32 time_taken_s = timer_get_s(timer);
 
-	UINT sleep_granularity_ms = 1;
-	timing_info.sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
-
-	QueryPerformanceFrequency(&timing_info.clock_frequency);
-
-	return timing_info;
-}
-
-static void wait_for_tick_end(LARGE_INTEGER tick_start_time, Timing_Info* timing_info)
-{
-	float32 time_taken_s = time_since(tick_start_time, timing_info->clock_frequency);
-
-	while (time_taken_s < c_seconds_per_tick)
+	while (time_taken_s < wait_time_s)
 	{
-		if (timing_info->sleep_granularity_was_set)
+		if (g_timer_sleep_granularity_was_set)
 		{
-			DWORD time_to_wait_ms = (DWORD)((c_seconds_per_tick - time_taken_s) * 1000);
+			DWORD time_to_wait_ms = (DWORD)((wait_time_s - time_taken_s) * 1000);
 			if(time_to_wait_ms > 0)
 			{
 				Sleep(time_to_wait_ms);
 			}
 		}
 
-		time_taken_s = time_since(tick_start_time, timing_info->clock_frequency);
+		time_taken_s = timer_get_s(timer);
 	}
 }
 
