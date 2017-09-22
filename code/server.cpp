@@ -43,6 +43,9 @@ void main()
 	float32 time_since_heard_from_clients[c_max_clients];
 	Player_State client_objects[c_max_clients];
 	Player_Input client_inputs[c_max_clients];
+	Player_Input client_input_buffer_inputs[c_ticks_per_second][c_max_clients];
+	uint32 client_input_buffer_test[c_ticks_per_second][c_max_clients];
+	uint32 client_input_buffer_head = 0;
 	uint32 client_timestamps[c_max_clients];
 	uint32 tick_number = 0;
 	Timer tick_timer = timer_create();
@@ -51,6 +54,13 @@ void main()
 	{
 		client_endpoints[i] = {};
 	}
+	for (uint32 i = 0; i < c_ticks_per_second; ++i)
+	{
+		for (uint32 j = 0; j < c_max_clients; ++j)
+		{
+			client_input_buffer_test[i][j] = 0;
+		}
+	}	
 
 	bool32 is_running = 1;
 	while (is_running)
@@ -118,7 +128,7 @@ void main()
 					}
 					else
 					{
-						log("[server] Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)", 
+						log("[server] Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)\n", 
 							slot, from.address, from.port, 
 							client_endpoints[slot].address, client_endpoints[slot].port);
 					}
@@ -130,10 +140,29 @@ void main()
 					uint32 slot;
 					Player_Input input;
 					uint32 timestamp;
-					Net::client_msg_input_read(buffer, &slot, &input, &timestamp);
+					uint32 input_tick_number;
+					Net::client_msg_input_read(buffer, &slot, &input, &timestamp, &input_tick_number);
 
 					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
 					{
+						if (input_tick_number >= tick_number)
+						{
+							uint32 offset = input_tick_number - tick_number;
+							if (offset < c_ticks_per_second)
+							{
+								uint32 write_pos = (client_input_buffer_head + offset) % c_ticks_per_second;
+								client_input_buffer_inputs[write_pos][slot] = input;
+								client_input_buffer_test[write_pos][slot] = 1;
+							}
+							else
+							{
+								log("[server] Input from %d ignored, too far ahead, it was for tick %d but we're on tick %d\n", slot, input_tick_number, tick_number);
+							}
+						}
+						else
+						{
+							log("[server] Input from %d ignored, behind, it was for tick %d but we're on tick %d\n", slot, input_tick_number, tick_number);
+						}
 						client_inputs[slot] = input;
 						client_timestamps[slot] = timestamp;
 						time_since_heard_from_clients[slot] = 0.0f;
@@ -146,12 +175,31 @@ void main()
 				break;
 			}
 		}
-		
-		// process input and update state
+
+		// apply any buffered inputs from clients
+		for (uint32 i = 0; i < c_max_clients; ++i)
+		{
+			Player_Input* a = &client_inputs[i];
+			Player_Input* b = &client_input_buffer_inputs[client_input_buffer_head][i];
+			uint32 t1 = client_input_buffer_test[client_input_buffer_head][i];
+			uint32 t0 = 1 - t1;
+
+			a->up = (a->up * t0) + (b->up * t1);
+			a->down = (a->down * t0) + (b->down * t1);
+			a->left = (a->left * t0) + (b->left * t1);
+			a->right = (a->right * t0) + (b->right * t1);
+
+			client_input_buffer_test[client_input_buffer_head][i] = 0; // clear for next time
+		}
+		client_input_buffer_head = (client_input_buffer_head + 1) % c_ticks_per_second;
+
+		// update players
+		log("[update] tick %d ", tick_number);
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
+				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
 				tick_player(&client_objects[i], &client_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
@@ -162,6 +210,7 @@ void main()
 				}
 			}
 		}
+		log("\n");
 		
 		// create and send state packets
 		for (uint32 i = 0; i < c_max_clients; ++i)

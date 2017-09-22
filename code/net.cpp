@@ -357,7 +357,7 @@ static void client_msg_leave_read(uint8* buffer, uint32* out_slot)
 	memcpy(out_slot, &buffer[1], 2);
 }
 
-static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, uint32 timestamp)
+static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, uint32 timestamp, uint32 tick_number)
 {
 	// if up/down/left/right are non-zero they're not necessarily 1
 	uint8 packed_input =	(uint8)(input->up ? 1 : 0) | 
@@ -369,10 +369,11 @@ static uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* i
 	memcpy(&buffer[1], &slot, 2);
 	buffer[3] = packed_input;
 	memcpy(&buffer[4], &timestamp, 4);
+	memcpy(&buffer[8], &tick_number, 4);
 
-	return 8;
+	return 12;
 }
-static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* input, uint32* timestamp)
+static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* input, uint32* timestamp, uint32* tick_number)
 {
 	assert(buffer[0] == (uint8)Client_Message::Input);
 
@@ -385,6 +386,7 @@ static void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* inp
 	input->right = buffer[3] & 1 << 3;
 
 	memcpy(timestamp, &buffer[4], 4);
+	memcpy(tick_number, &buffer[8], 4);
 }
 
 enum class Server_Message : uint8

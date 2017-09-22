@@ -245,7 +245,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					// todo(jbr) better method of working out how much to predict
 					float32 est_rtt_s = est_rtt_ms / 1000.0f;
 					uint32 ticks_to_predict = (uint32)((est_rtt_s * 0.5f) / c_seconds_per_tick);
-					ticks_to_predict += 2;
+					ticks_to_predict += 15; // todo(jbr) not sure why this is so high?
 					uint32 old_target_tick_number = target_tick_number;
 					target_tick_number = state_tick_number + ticks_to_predict;
 					log("[client] state tick %d received, target predicted tick %d (was %d)\n", state_tick_number, target_tick_number, old_target_tick_number);
@@ -254,6 +254,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					 	state_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
+						// todo(jbr) start at target tick number?
 						me = state_my_object;
 						tick_number = state_tick_number;
 						prediction_history_head = 0;
@@ -299,11 +300,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			tick_number != (uint32)-1)
 		{
 			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time_ms);
+			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time_ms, tick_number);
 			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);
 
 			while (tick_number < target_tick_number)
 			{
+				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
+
 				tick_player(&me, &g_input);
 				++tick_number;
 
