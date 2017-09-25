@@ -199,7 +199,7 @@ void main()
 		{
 			if (client_endpoints[i].address)
 			{
-				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
+				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
 				tick_player(&client_objects[i], &client_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
@@ -210,7 +210,6 @@ void main()
 				}
 			}
 		}
-		log("\n");
 		
 		// create and send state packets
 		for (uint32 i = 0; i < c_max_clients; ++i)

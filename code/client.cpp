@@ -305,7 +305,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 			while (tick_number < target_tick_number)
 			{
-				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
+				log("[update] tick %d x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, me.x, me.y, me.facing, me.speed, g_input.up, g_input.down, g_input.left, g_input.right);
 
 				tick_player(&me, &g_input);
 				++tick_number;
