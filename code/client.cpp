@@ -239,16 +239,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
 					uint32 est_rtt_ms = time_now_ms - state_timestamp;
-					log("[client] est RTT %dms\n", est_rtt_ms);
 					
 					// predict at half rtt, plus a bit
 					// todo(jbr) better method of working out how much to predict
 					float32 est_rtt_s = est_rtt_ms / 1000.0f;
 					uint32 ticks_to_predict = (uint32)((est_rtt_s * 0.5f) / c_seconds_per_tick);
 					ticks_to_predict += 15; // todo(jbr) not sure why this is so high?
-					uint32 old_target_tick_number = target_tick_number;
 					target_tick_number = state_tick_number + ticks_to_predict;
-					log("[client] state tick %d received, target predicted tick %d (was %d)\n", state_tick_number, target_tick_number, old_target_tick_number);
 
 					if (tick_number == (uint32)-1 ||
 					 	state_tick_number >= tick_number)
@@ -272,14 +269,12 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 								++prediction_history_head_tick_number;
 								prediction_history_head = (prediction_history_head + 1) % c_max_predicted_ticks;
 								--prediction_history_size;
-								log("[client] discarding unneeded prediction history\n");
 							}
 							else if (prediction_history_head_tick_number == state_tick_number)
 							{
-								float32 dx = prediction_history[prediction_history_head].x - state_my_object.x;
+								/*float32 dx = prediction_history[prediction_history_head].x - state_my_object.x;
 								float32 dy = prediction_history[prediction_history_head].y - state_my_object.y;
-								float32 error = sqrtf((dx * dx) + (dy * dy));
-								log("[client] error %f\n", error);
+								float32 error = sqrtf((dx * dx) + (dy * dy));*/
 								break;
 							}
 							else
@@ -296,6 +291,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// tick player if we have one
+		// todo(jbr) max x2 speed, min x0.5
 		if (slot != (uint32)-1 && 
 			tick_number != (uint32)-1)
 		{
@@ -305,7 +301,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 			while (tick_number < target_tick_number)
 			{
-				log("[update] tick %d x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, me.x, me.y, me.facing, me.speed, g_input.up, g_input.down, g_input.left, g_input.right);
+				log("[update] tick %d, x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, me.x, me.y, me.facing, me.speed, g_input.up, g_input.down, g_input.left, g_input.right);
 
 				tick_player(&me, &g_input);
 				++tick_number;

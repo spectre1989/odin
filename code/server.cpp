@@ -163,7 +163,7 @@ void main()
 						{
 							log("[server] Input from %d ignored, behind, it was for tick %d but we're on tick %d\n", slot, input_tick_number, tick_number);
 						}
-						client_inputs[slot] = input;
+						
 						client_timestamps[slot] = timestamp;
 						time_since_heard_from_clients[slot] = 0.0f;
 					}
@@ -194,12 +194,11 @@ void main()
 		client_input_buffer_head = (client_input_buffer_head + 1) % c_ticks_per_second;
 
 		// update players
-		log("[update] tick %d ", tick_number);
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
-				log("x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
+				log("[update] tick %d, x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
 				tick_player(&client_objects[i], &client_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
@@ -210,6 +209,7 @@ void main()
 				}
 			}
 		}
+		++tick_number;
 		
 		// create and send state packets
 		for (uint32 i = 0; i < c_max_clients; ++i)
@@ -227,8 +227,6 @@ void main()
 		}
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick);
-
-		++tick_number;
 	}
 
 	Net::socket_close(&sock);
