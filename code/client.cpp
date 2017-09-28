@@ -178,7 +178,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	Player_State me {};
 	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
-	Player_State prediction_history[c_max_predicted_ticks];
+	Player_State prediction_history_state[c_max_predicted_ticks];
+	Player_Input prediction_history_input[c_max_predicted_ticks];
 	uint32 prediction_history_head = 0;
 	uint32 prediction_history_tail = 0;
 	uint32 prediction_history_head_tick_number = 0;
@@ -272,9 +273,33 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 							}
 							else if (prediction_history_head_tick_number == state_tick_number)
 							{
-								/*float32 dx = prediction_history[prediction_history_head].x - state_my_object.x;
-								float32 dy = prediction_history[prediction_history_head].y - state_my_object.y;
-								float32 error = sqrtf((dx * dx) + (dy * dy));*/
+								float32 dx = prediction_history_state[prediction_history_head].x - state_my_object.x;
+								float32 dy = prediction_history_state[prediction_history_head].y - state_my_object.y;
+								constexpr float32 c_max_error = 0.01f;
+								constexpr float32 c_max_error_sq = c_max_error * c_max_error;
+								float32 error_sq = (dx * dx) + (dy * dy);
+								if (error_sq > c_max_error_sq)
+								{
+									log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), state_tick_number);
+
+									me = state_my_object;
+									uint32 i = prediction_history_head;
+									uint32 prev_i;
+									while (true)
+									{
+										prediction_history_state[i] = me;
+
+										prev_i = i;
+										i = (prev_i + 1) % c_max_predicted_ticks;
+
+										if (i == prediction_history_tail)
+										{
+											break;
+										}
+
+										tick_player(&me, &prediction_history_input[prev_i]);
+									}
+								}
 								break;
 							}
 							else
@@ -301,13 +326,12 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 			while (tick_number < target_tick_number)
 			{
-				log("[update] tick %d, x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, me.x, me.y, me.facing, me.speed, g_input.up, g_input.down, g_input.left, g_input.right);
-
 				tick_player(&me, &g_input);
 				++tick_number;
 
 				// todo(jbr) detect and handle buffer being full
-				prediction_history[prediction_history_tail] = me;
+				prediction_history_state[prediction_history_tail] = me;
+				prediction_history_input[prediction_history_tail] = g_input;
 				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
 			}
 

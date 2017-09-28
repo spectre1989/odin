@@ -198,12 +198,13 @@ void main()
 		{
 			if (client_endpoints[i].address)
 			{
-				log("[update] tick %d, x = %f, y = %f, facing = %f, speed = %f, up = %d, down = %d, left = %d, right = %d\n", tick_number, client_objects[i].x, client_objects[i].y, client_objects[i].facing, client_objects[i].speed, client_inputs[i].up, client_inputs[i].down, client_inputs[i].left, client_inputs[i].right);
 				tick_player(&client_objects[i], &client_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
 				{
+					// todo(jbr) when receiving messages from a client whose slot doesn't match with
+					// the endpoint we have, send a message back to them saying "go away"
 					log("[server] client %hu timed out\n", i);
 					client_endpoints[i] = {};
 				}
