@@ -1,5 +1,10 @@
-#include "core.cpp"
-#include "net.cpp"
+// std
+#include <stdio.h>
+// odin
+#include "core.h"
+#include "net.h"
+#include "net_msgs.h"
+#include "odin.h"
 
 
 constexpr float32 c_client_timeout 	= 5.0f;
@@ -70,7 +75,7 @@ void main()
 		// read all available packets
 		uint32 bytes_received;
 		Net::IP_Endpoint from;
-		while (Net::socket_receive(&sock, buffer, &bytes_received, &from))
+		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
 			switch (buffer[0])
 			{

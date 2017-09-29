@@ -14,6 +14,6 @@ cd build
 :: WX - treat warnings as errors
 :: OPT:REF - eliminate functions which are never referenced
 :: SUBSYSTEM - environment for executable
-cl /nologo /MT /Z7 /Gm- /GR- /EHa- /Od /Oi /FC /W4 /WX /wd4505 ..\code\client.cpp /link /OPT:REF /SUBSYSTEM:WINDOWS,5.2 /LIBPATH:%VULKAN_SDK%\Source\lib User32.lib vulkan-1.lib Ws2_32.lib Winmm.lib
+cl /nologo /MT /Z7 /Gm- /GR- /EHa- /Od /Oi /FC /W4 /WX /wd4505 ..\code\unity_client.cpp /link /OPT:REF /SUBSYSTEM:WINDOWS,5.2 /LIBPATH:%VULKAN_SDK%\Source\lib User32.lib vulkan-1.lib Ws2_32.lib Winmm.lib /OUT:client.exe
 
 cd ..

@@ -1,9 +1,12 @@
+// std
+#include <math.h>
+#include <stdio.h>
 #include <time.h>
-
-#include "core.cpp"
-#define FAKE_LAG
-#include "net.cpp"
-#include "graphics.cpp"
+// odin
+#include "core.h"
+#include "graphics.h"
+#include "net.h"
+#include "net_msgs.h"
 
 
 
@@ -101,7 +104,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		HMENU 	menu 			= 0;
 		LPVOID 	param 			= 0;
 
-		window_handle 			= CreateWindow( window_class.lpszClassName, window_name, style, x, y, c_window_width, c_window_height, parent_window, menu, instance, param );
+		window_handle 			= CreateWindowA( window_class.lpszClassName, window_name, style, x, y, c_window_width, c_window_height, parent_window, menu, instance, param );
 
 		assert( window_handle );
 	}
@@ -165,6 +168,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	{
 		return 0;
 	}
+	Net::socket_set_fake_lag_s(&sock, 0.2f); // 200ms of fake lag
 
 	uint8 buffer[c_socket_buffer_size];
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
@@ -213,7 +217,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		// Process Packets
 		uint32 bytes_received;
 		Net::IP_Endpoint from;
-		while (Net::socket_receive(&sock, buffer, &bytes_received, &from))
+		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
 			switch (buffer[0])
 			{

@@ -1,31 +1,8 @@
-#define VK_USE_PLATFORM_WIN32_KHR
-#include <vulkan\vulkan.h>
+#include "graphics.h"
+
 
 namespace Graphics
 {
-
-
-struct Vertex
-{
-	float32 pos_x;
-	float32 pos_y;
-	float32 col_r;
-	float32 col_g;
-	float32 col_b;
-};
-
-struct State // todo(jbr) better name for this?
-{
-	VkDevice device;
-	VkQueue graphics_queue;
-	VkQueue present_queue;
-	VkDeviceMemory vertex_buffer_memory;
-	VkSwapchainKHR swapchain;
-	VkSemaphore image_available_semaphore;
-	VkSemaphore render_finished_semaphore;
-	VkCommandBuffer* command_buffers;
-};
-
 
 
 static void log(Log_Function* p_log_function, const char* format, ...)
@@ -38,10 +15,11 @@ static void log(Log_Function* p_log_function, const char* format, ...)
 }
 
 // the return value indicates whether the calling layer should abort the vulkan call
-static VkBool32 vulkan_debug_callback( 	VkDebugReportFlagsEXT /*flags*/, 
-										VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
-										size_t /*location*/, int32_t /*code*/, 
-										const char* layer_prefix, const char* msg, void* user_data) 
+static VkBool32 VKAPI_PTR 
+vulkan_debug_callback(	VkDebugReportFlagsEXT /*flags*/,
+						VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
+						size_t /*location*/, int32_t /*code*/, 
+						const char* layer_prefix, const char* msg, void* user_data) 
 {
 	if (user_data)
 	{
@@ -100,7 +78,7 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, State* out_state)
+void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, State* out_state)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -701,7 +679,7 @@ static void init(HWND window_handle, HINSTANCE instance, uint32 window_width, ui
 	assert(result == VK_SUCCESS);
 }
 
-static void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state)
+void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state)
 {
 	const uint32 c_vertex_data_size = num_vertices * sizeof(vertices[0]);
 	copy_to_buffer(state->device, state->vertex_buffer_memory, (void*)vertices, c_vertex_data_size);
