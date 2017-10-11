@@ -245,11 +245,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
 					uint32 est_rtt_ms = time_now_ms - state_timestamp;
 					
-					// predict at half rtt, plus a bit
+					// predict at tick number of this state packet, plus rtt, plus a bit for jitter
 					// todo(jbr) better method of working out how much to predict
 					float32 est_rtt_s = est_rtt_ms / 1000.0f;
-					uint32 ticks_to_predict = (uint32)((est_rtt_s * 0.5f) / c_seconds_per_tick);
-					ticks_to_predict += 15; // todo(jbr) not sure why this is so high?
+					uint32 ticks_to_predict = (uint32)(est_rtt_s / c_seconds_per_tick);
+					ticks_to_predict += 2;
 					target_tick_number = state_tick_number + ticks_to_predict;
 
 					if (tick_number == (uint32)-1 ||
