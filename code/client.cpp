@@ -258,7 +258,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
 						// todo(jbr) start at target tick number?
 						me = state_my_object;
-						tick_number = state_tick_number;
+						tick_number = target_tick_number;
 						prediction_history_head = 0;
 						prediction_history_tail = 0;
 						prediction_history_head_tick_number = tick_number + 1;
@@ -266,50 +266,44 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					else
 					{
 						uint32 prediction_history_size = prediction_history_tail > prediction_history_head ? prediction_history_tail - prediction_history_head : c_max_predicted_ticks - (prediction_history_head - prediction_history_tail);
-						while (prediction_history_size)
+						while (prediction_history_size && 
+							prediction_history_head_tick_number < state_tick_number)
 						{
-							if (prediction_history_head_tick_number < state_tick_number)
+							// discard this one, not needed
+							++prediction_history_head_tick_number;
+							prediction_history_head = (prediction_history_head + 1) % c_max_predicted_ticks;
+							--prediction_history_size;
+						}
+
+						if (prediction_history_size &&
+							prediction_history_head_tick_number == state_tick_number)
+						{
+							float32 dx = prediction_history_state[prediction_history_head].x - state_my_object.x;
+							float32 dy = prediction_history_state[prediction_history_head].y - state_my_object.y;
+							constexpr float32 c_max_error = 0.01f;
+							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
+							float32 error_sq = (dx * dx) + (dy * dy);
+							if (error_sq > c_max_error_sq)
 							{
-								// discard this one, not needed
-								++prediction_history_head_tick_number;
-								prediction_history_head = (prediction_history_head + 1) % c_max_predicted_ticks;
-								--prediction_history_size;
-							}
-							else if (prediction_history_head_tick_number == state_tick_number)
-							{
-								float32 dx = prediction_history_state[prediction_history_head].x - state_my_object.x;
-								float32 dy = prediction_history_state[prediction_history_head].y - state_my_object.y;
-								constexpr float32 c_max_error = 0.01f;
-								constexpr float32 c_max_error_sq = c_max_error * c_max_error;
-								float32 error_sq = (dx * dx) + (dy * dy);
-								if (error_sq > c_max_error_sq)
+								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), state_tick_number);
+
+								me = state_my_object;
+								uint32 i = prediction_history_head;
+								uint32 prev_i;
+								while (true)
 								{
-									log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), state_tick_number);
+									prediction_history_state[i] = me;
 
-									me = state_my_object;
-									uint32 i = prediction_history_head;
-									uint32 prev_i;
-									while (true)
+									prev_i = i;
+									i = (prev_i + 1) % c_max_predicted_ticks;
+
+									if (i == prediction_history_tail)
 									{
-										prediction_history_state[i] = me;
-
-										prev_i = i;
-										i = (prev_i + 1) % c_max_predicted_ticks;
-
-										if (i == prediction_history_tail)
-										{
-											break;
-										}
-
-										tick_player(&me, &prediction_history_input[prev_i]);
+										break;
 									}
+
+									tick_player(&me, &prediction_history_input[prev_i]);
 								}
-								break;
-							}
-							else
-							{
-								// todo(jbr) can this happen other than when we're predicting to far? handle this
-								assert(false);
 							}
 						}
 					}
@@ -320,7 +314,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// tick player if we have one
-		// todo(jbr) max x2 speed, min x0.5
 		if (slot != (uint32)-1 && 
 			tick_number != (uint32)-1)
 		{
@@ -328,6 +321,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time_ms, tick_number);
 			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);
 
+			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
 				tick_player(&me, &g_input);
