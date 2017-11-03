@@ -125,9 +125,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		int32 component = rand() % 3;
 		rgb[component] = 1.0f;
 
-		component += rand() % 2 ? 1 : -1;
-		if(component < 0) component += 3;
-		else if(component > 2) component -= 3;
+		component += (rand() % 2) + 1;
+		if(component > 2) component -= 3;
 		rgb[component] = (float32)(rand() % 100) / 100.0f;
 
 		// assign colour to all 4 verts, and zero positions to begin with
@@ -256,7 +255,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					 	state_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
-						// todo(jbr) start at target tick number?
 						me = state_my_object;
 						tick_number = target_tick_number;
 						prediction_history_head = 0;
