@@ -10,7 +10,6 @@
 
 
 
-static bool32 g_is_running;
 static Player_Input g_input;
 
 
@@ -55,17 +54,19 @@ LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, L
 {
 	switch (message)
 	{
-		case WM_QUIT:
 		case WM_DESTROY:
-			g_is_running = 0;
+			PostQuitMessage(0);
+			return 0;
 		break;
 
 		case WM_KEYDOWN:
 			update_input(w_param, 1);
+			return 0;
 		break;
 
 		case WM_KEYUP:
 			update_input(w_param, 0);
+			return 0;
 		break;
 	}
 
@@ -196,20 +197,32 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	
 	// main loop
-	g_is_running = 1;
-	while (g_is_running)
+	int exit_code = 0;
+	while (true)
 	{
 		timer_restart(&tick_timer);
 
 		// Windows messages
+		bool32 got_quit_message = 0;
 		MSG message;
+		HWND hwnd = 0; // WM_QUIT is not associated with a window, so this must be 0
 		UINT filter_min = 0;
 		UINT filter_max = 0;
 		UINT remove_message = PM_REMOVE;
-		while (PeekMessage(&message, window_handle, filter_min, filter_max, remove_message))
+		while (PeekMessage(&message, hwnd, filter_min, filter_max, remove_message))
 		{
+			if (message.message == WM_QUIT)
+			{
+				exit_code = (int)message.wParam;
+				got_quit_message = 1;
+				break;
+			}
 			TranslateMessage( &message );
 			DispatchMessage( &message );
+		}
+		if (got_quit_message)
+		{
+			break;
 		}
 
 
@@ -375,6 +388,5 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Net::socket_send(&sock, buffer, leave_msg_size, &server_endpoint);
 	Net::socket_close(&sock);
 
-	// todo( jbr ) return wParam of WM_QUIT
-	return 0;
+	return exit_code;
 }
