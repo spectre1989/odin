@@ -34,3 +34,13 @@ Timer	timer_create();
 void	timer_restart(Timer* timer);
 float32 timer_get_s(Timer* timer);
 void	timer_wait_until(Timer* timer, float32 wait_time_s);
+
+
+struct MemoryAllocator
+{
+	uint8* memory;
+	uint8* next;
+	uint32 bytes_remaining;
+};
+void memory_allocator_create(MemoryAllocator* allocator, uint8* memory, uint32 size);
+uint8* memory_allocator_alloc(MemoryAllocator* allocator, uint32 size);

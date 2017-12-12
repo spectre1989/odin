@@ -14,7 +14,7 @@ static bool try_set_sleep_granularity()
 	return timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
 }
 
-static LARGE_INTEGER g_timer_clock_frequency = get_clock_frequency();
+static LARGE_INTEGER g_timer_clock_frequency = get_clock_frequency(); // todo(jbr) move all globals to one place
 static bool g_timer_sleep_granularity_was_set = try_set_sleep_granularity();
 
 
@@ -55,4 +55,19 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 
 		time_taken_s = timer_get_s(timer);
 	}
+}
+
+void memory_allocator_create(MemoryAllocator* allocator, uint8* memory, uint32 size)
+{
+	allocator->memory = memory;
+	allocator->next = memory;
+	allocator->bytes_remaining = size;
+}
+
+uint8* memory_allocator_alloc(MemoryAllocator* allocator, uint32 size)
+{
+	assert(allocator->bytes_remaining >= size);
+	uint8* mem = allocator->next;
+	allocator->next += size;
+	return mem;
 }
