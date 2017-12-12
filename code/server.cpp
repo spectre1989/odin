@@ -125,7 +125,7 @@ void main()
 					uint32 slot;
 					Net::client_msg_leave_read(buffer, &slot);
 
-					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
+					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
 						client_endpoints[slot] = {};
 						log("[server] Client_Message::Leave from %hu(%u:%hu)\n", 
@@ -148,7 +148,7 @@ void main()
 					uint32 input_tick_number;
 					Net::client_msg_input_read(buffer, &slot, &input, &timestamp, &input_tick_number);
 
-					if (Net::ip_endpoint_equal(&client_endpoints[slot], &from))
+					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
 						if (input_tick_number >= tick_number)
 						{

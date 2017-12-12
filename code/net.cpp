@@ -49,7 +49,7 @@ IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port)
 	return ip_endpoint;
 }
 
-bool ip_endpoint_equal(IP_Endpoint* a, IP_Endpoint* b)
+bool ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b)
 {
 	return a->address == b->address && a->port == b->port;
 }

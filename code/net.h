@@ -16,7 +16,7 @@ struct IP_Endpoint
 	uint16 port;
 };
 IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port);
-bool		ip_endpoint_equal(IP_Endpoint* a, IP_Endpoint* b);
+bool		ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b);
 SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint);
 
 
