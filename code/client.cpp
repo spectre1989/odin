@@ -28,6 +28,7 @@ static void log(const char* format, ...)
 	va_end(args);
 }
 
+// todo(jbr) input thread
 static void update_input(WPARAM keycode, bool32 value)
 {
 	switch (keycode)
@@ -48,6 +49,21 @@ static void update_input(WPARAM keycode, bool32 value)
 			g_input.down = value;
 		break;
 	}
+}
+
+constexpr uint64 kilobytes(uint32 kb)
+{
+	return kb * 1024;
+}
+
+constexpr uint64 megabytes(uint32 mb)
+{
+	return kilobytes(mb * 1024);
+}
+
+constexpr uint64 gigabytes(uint32 gb)
+{
+	return megabytes(gb * 1024);
 }
 
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
@@ -111,6 +127,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 	ShowWindow( window_handle, cmd_show );
 
+	// make some allocators
+	constexpr uint64 c_temp_mem_size = megabytes(64);
+	VirtualAlloc((LPVOID)gigabytes(1), c_temp_mem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	Memory_Allocator temp_allocator;
+
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
 	Graphics::Vertex vertices[c_num_vertices];
@@ -157,7 +178,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state;
-	Graphics::init(window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &graphics_state);
+	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &temp_allocator);
 
 	if (!Net::init(&log_v))
 	{

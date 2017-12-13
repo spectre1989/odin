@@ -155,6 +155,7 @@ void main()
 							uint32 offset = input_tick_number - tick_number;
 							if (offset < c_ticks_per_second)
 							{
+								// todo(jbr) is a generalised circular buffer needed?
 								uint32 write_pos = (client_input_buffer_head + offset) % c_ticks_per_second;
 								client_input_buffer_inputs[write_pos][slot] = input;
 								client_input_buffer_test[write_pos][slot] = 1;

@@ -57,14 +57,14 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 	}
 }
 
-void memory_allocator_create(MemoryAllocator* allocator, uint8* memory, uint32 size)
+void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint32 size)
 {
 	allocator->memory = memory;
 	allocator->next = memory;
 	allocator->bytes_remaining = size;
 }
 
-uint8* memory_allocator_alloc(MemoryAllocator* allocator, uint32 size)
+uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint32 size)
 {
 	assert(allocator->bytes_remaining >= size);
 	uint8* mem = allocator->next;

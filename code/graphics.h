@@ -19,7 +19,7 @@ struct Vertex
 	float32 col_b;
 };
 
-struct State // todo(jbr) better name for this?
+struct State
 {
 	VkDevice device;
 	VkQueue graphics_queue;
@@ -31,7 +31,7 @@ struct State // todo(jbr) better name for this?
 	VkCommandBuffer* command_buffers;
 };
 
-void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, State* out_state);
+void init(State* out_state, HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, Memory_Allocator* p_temp_allocator);
 void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state);
 
 

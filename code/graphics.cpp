@@ -78,7 +78,13 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, State* out_state)
+void init(	State* out_state,
+			HWND window_handle, HINSTANCE instance, 
+			uint32 window_width, uint32 window_height, 
+			uint32 num_vertices, 
+			uint16* indices, uint32 num_indices, 
+			Log_Function* p_log_function, 
+			Memory_Allocator* p_temp_allocator)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -130,8 +136,7 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 	assert( result == VK_SUCCESS );
 	assert( physical_device_count > 0 );
 	
-	// todo( jbr ) custom memory allocator
-	VkPhysicalDevice* physical_devices = new VkPhysicalDevice[physical_device_count];
+	VkPhysicalDevice* physical_devices = (VkPhysicalDevice*)memory_allocator_alloc(p_temp_allocator, sizeof(VkPhysicalDevice) * physical_device_count);
 
 	result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
 	assert( result == VK_SUCCESS );
@@ -156,8 +161,7 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, 0 );
 			assert( result == VK_SUCCESS );
 
-			// todo( jbr ) custom memory allocator
-			VkExtensionProperties* device_extensions = new VkExtensionProperties[extension_count];
+			VkExtensionProperties* device_extensions = (VkExtensionProperties*)memory_allocator_alloc(p_temp_allocator, sizeof(VkExtensionProperties) * extension_count);
 			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, device_extensions );
 			assert( result == VK_SUCCESS );
 
@@ -169,8 +173,6 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 					break;
 				}
 			}
-			
-			delete[] device_extensions;
 
 			if( physical_device )
 			{
@@ -185,8 +187,7 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 
 				if( format_count && present_mode_count ) 
 				{
-					// todo( jbr ) custom allocator
-					VkSurfaceFormatKHR* surface_formats = new VkSurfaceFormatKHR[format_count];
+					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)memory_allocator_alloc(p_temp_allocator, sizeof(VkSurfaceFormatKHR) * format_count);
 				    result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
 				    assert( result == VK_SUCCESS );
 
@@ -201,9 +202,7 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 						swapchain_surface_format = surface_formats[0];
 				    }
 
-				    delete[] surface_formats;
-
-					VkPresentModeKHR* present_modes = new VkPresentModeKHR[present_mode_count];
+					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)memory_allocator_alloc(p_temp_allocator, sizeof(VkPresentModeKHR) * present_mode_count);
 				    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
 				    assert( result == VK_SUCCESS );
 
@@ -214,8 +213,6 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 				    		swapchain_present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
 				    	}
 				    }
-
-				    delete[] present_modes;
 
 					VkSurfaceCapabilitiesKHR surface_capabilities = {};
 					result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_capabilities );
@@ -255,14 +252,11 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 
 	assert( physical_device );
 
-	delete[] physical_devices;
-
 	uint32 queue_family_count;
 	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
 	assert( queue_family_count > 0 );
 
-	// todo( jbr ) custom memory allocator
-	VkQueueFamilyProperties* queue_families = new VkQueueFamilyProperties[queue_family_count];
+	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)memory_allocator_alloc(p_temp_allocator, sizeof(VkQueueFamilyProperties) * queue_family_count);
 
 	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
 
@@ -294,8 +288,6 @@ void init(HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 wi
 
 	assert( graphics_queue_family_index != uint32( -1 ) );
 	assert( present_queue_family_index != uint32( -1 ) );
-
-	delete[] queue_families;
 
 	VkDeviceQueueCreateInfo device_queue_create_infos[2];
 	device_queue_create_infos[0] = {};
