@@ -48,7 +48,7 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 		{
 			DWORD time_to_wait_ms = (DWORD)((wait_time_s - time_taken_s) * 1000);
 			if (time_to_wait_ms > 0)
-			{
+			{// todo(jbr) test this for possible oversleep
 				Sleep(time_to_wait_ms);
 			}
 		}
