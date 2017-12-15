@@ -18,6 +18,7 @@ struct IP_Endpoint
 IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port);
 bool		ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b);
 SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint);
+void		ip_endpoint_to_str(char* out_str, size_t out_str_size, IP_Endpoint* ip_endpoint);
 
 
 #ifdef FAKE_LAG

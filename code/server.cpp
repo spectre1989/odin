@@ -81,7 +81,9 @@ void main()
 			{
 				case Net::Client_Message::Join:
 				{
-					log("[server] Client_Message::Join from %u:%hu\n", from.address, from.port);
+					char from_str[22];
+					ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+					log("[server] Client_Message::Join from %s\n", from_str);
 
 					uint32 slot = (uint32)-1;
 					for (uint32 i = 0; i < c_max_clients; ++i)
@@ -128,14 +130,18 @@ void main()
 					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
 						client_endpoints[slot] = {};
-						log("[server] Client_Message::Leave from %hu(%u:%hu)\n", 
-							slot, from.address, from.port);
+						char from_str[22];
+						ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+						log("[server] Client_Message::Leave from %hu(%s)\n", slot, from_str);
 					}
 					else
 					{
-						log("[server] Client_Message::Leave from %hu(%u:%hu), espected (%u:%hu)\n", 
-							slot, from.address, from.port, 
-							client_endpoints[slot].address, client_endpoints[slot].port);
+						char from_str[22];
+						char client_endpoint_str[22];
+						ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+						ip_endpoint_to_str(client_endpoint_str, sizeof(client_endpoint_str), &client_endpoints[slot]);
+						log("[server] Client_Message::Leave from %hu(%s), espected (%s)\n", 
+							slot, from_str, client_endpoint_str);
 					}
 				}
 				break;
