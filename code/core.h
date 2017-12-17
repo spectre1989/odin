@@ -41,6 +41,7 @@ struct Memory_Allocator
 	uint8* memory;
 	uint8* next;
 	uint32 bytes_remaining;
-};
+}; // todo(jbr) stick allocators in globals, and then make convenient functions like alloc_permanent alloc_temp etc
+// todo(jbr) strip back the DI, only use where actually needed - i.e. hooking up client to use debug output, and server printf, but store that callback in globals, stop prematurely abstracting
 void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint32 size);
 uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint32 size);
