@@ -128,9 +128,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	ShowWindow( window_handle, cmd_show );
 
 	// make some allocators
+	constexpr uint64 c_perm_mem_size = megabytes(64);
 	constexpr uint64 c_temp_mem_size = megabytes(64);
-	VirtualAlloc((LPVOID)gigabytes(1), c_temp_mem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	uint8* memory = (uint8*)VirtualAlloc((LPVOID)gigabytes(1), c_perm_mem_size + c_temp_mem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	Memory_Allocator perm_allocator;
+	memory_allocator_create(&perm_allocator, memory, c_perm_mem_size);
 	Memory_Allocator temp_allocator;
+	memory_allocator_create(&temp_allocator, memory + c_perm_mem_size, c_temp_mem_size);
+	
 
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
@@ -177,8 +182,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		indices[index + 5] = vertex + 2;		// 2
 	}
 
-	Graphics::State graphics_state;
-	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &temp_allocator);
+	Graphics::State graphics_state; // todo(jbr) move stuff like this to permanent memory
+	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &perm_allocator, &temp_allocator);
 
 	if (!Net::init(&log_v))
 	{

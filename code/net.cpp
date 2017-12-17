@@ -1,5 +1,8 @@
 #include "net.h"
 
+#include <stdio.h>
+
+
 namespace Net
 {
 
@@ -61,6 +64,16 @@ SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint)
 	sockaddr_in.sin_addr.s_addr = htonl(ip_endpoint->address);
 	sockaddr_in.sin_port = htons(ip_endpoint->port);
 	return sockaddr_in;
+}
+
+void ip_endpoint_to_str(char* out_str, size_t out_str_size, IP_Endpoint* ip_endpoint)
+{
+	snprintf(out_str, out_str_size, "%d.%d.%d.%d:%hu",
+			ip_endpoint->address >> 24,
+			(ip_endpoint->address >> 16) & 0xFF,
+			(ip_endpoint->address >> 8) & 0xFF,
+			ip_endpoint->address & 0xFF,
+			ip_endpoint->port);
 }
 
 
