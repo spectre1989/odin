@@ -31,7 +31,7 @@ struct State
 	VkCommandBuffer* command_buffers;
 };
 
-void init(State* out_state, HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function, Memory_Allocator* p_perm_allocator, Memory_Allocator* p_temp_allocator);
+void init(State* out_state, HWND window_handle, HINSTANCE instance, uint32 window_width, uint32 window_height, uint32 num_vertices, uint16* indices, uint32 num_indices, Log_Function* p_log_function);
 void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state);
 
 

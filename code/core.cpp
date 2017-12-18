@@ -1,22 +1,6 @@
 #include "core.h"
 
 
-static LARGE_INTEGER get_clock_frequency()
-{
-	LARGE_INTEGER frequency;
-	QueryPerformanceFrequency(&frequency);
-	return frequency;
-}
-
-static bool try_set_sleep_granularity()
-{
-	UINT sleep_granularity_ms = 1;
-	return timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
-}
-
-static LARGE_INTEGER g_timer_clock_frequency = get_clock_frequency(); // todo(jbr) move all globals to one place
-static bool g_timer_sleep_granularity_was_set = try_set_sleep_granularity();
-
 
 void timer_restart(Timer* timer)
 {
@@ -35,7 +19,7 @@ float32 timer_get_s(Timer* timer)
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
-	return (float32)(now.QuadPart - timer->start.QuadPart) / (float32)g_timer_clock_frequency.QuadPart;
+	return (float32)(now.QuadPart - timer->start.QuadPart) / (float32)globals->clock_frequency.QuadPart;
 }
 
 void timer_wait_until(Timer* timer, float32 wait_time_s)
@@ -44,7 +28,7 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 
 	while (time_taken_s < wait_time_s)
 	{
-		if (g_timer_sleep_granularity_was_set)
+		if (globals->sleep_granularity_was_set)
 		{
 			DWORD time_to_wait_ms = (DWORD)((wait_time_s - time_taken_s) * 1000);
 			if (time_to_wait_ms > 0)
@@ -57,17 +41,61 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 	}
 }
 
-void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint32 size)
+void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size)
 {
 	allocator->memory = memory;
 	allocator->next = memory;
 	allocator->bytes_remaining = size;
 }
 
-uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint32 size)
+uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size)
 {
 	assert(allocator->bytes_remaining >= size);
 	uint8* mem = allocator->next;
 	allocator->next += size;
 	return mem;
+}
+
+uint8* allocate_permanent(uint64 size)
+{
+	return memory_allocator_alloc(&globals->permanent_allocator, size);
+}
+
+uint8* allocate_temp(uint64 size)
+{
+	return memory_allocator_alloc(&globals->temp_allocator, size);
+}
+
+
+static constexpr uint64 kilobytes(uint32 kb)
+{
+	return kb * 1024;
+}
+
+static constexpr uint64 megabytes(uint32 mb)
+{
+	return kilobytes(mb * 1024);
+}
+
+static constexpr uint64 gigabytes(uint32 gb)
+{
+	return megabytes(gb * 1024);
+}
+
+void globals_init()
+{
+	constexpr uint64 c_permanent_memory_size = megabytes(64);
+	constexpr uint64 c_temp_memory_size = megabytes(64);
+	constexpr uint64 c_total_memory_size = c_permanent_memory_size + c_temp_memory_size;
+
+	uint8* memory = (uint8*)VirtualAlloc((LPVOID)gigabytes(1), c_total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	// put globals at the start of permanent memory block
+	globals = (Globals*)memory;
+	
+	memory_allocator_create(&globals->permanent_allocator, memory + sizeof(Globals), c_permanent_memory_size - sizeof(Globals));
+	memory_allocator_create(&globals->temp_allocator, memory + c_permanent_memory_size, c_temp_memory_size);
+	QueryPerformanceFrequency(&globals->clock_frequency);
+	UINT sleep_granularity_ms = 1;
+	globals->sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
 }

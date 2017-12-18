@@ -7,7 +7,14 @@
 #include "odin.h"
 
 
+
 constexpr float32 c_client_timeout 	= 5.0f;
+
+
+
+Globals* globals;
+
+
 
 static void log_v(const char* format, va_list args)
 {
@@ -24,6 +31,8 @@ static void log(const char* format, ...)
 
 void main()
 {
+	globals_init();
+
 	if (!Net::init(&log_v))
 	{
 		return;

@@ -40,8 +40,22 @@ struct Memory_Allocator
 {
 	uint8* memory;
 	uint8* next;
-	uint32 bytes_remaining;
+	uint64 bytes_remaining;
 }; // todo(jbr) stick allocators in globals, and then make convenient functions like alloc_permanent alloc_temp etc
 // todo(jbr) strip back the DI, only use where actually needed - i.e. hooking up client to use debug output, and server printf, but store that callback in globals, stop prematurely abstracting
-void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint32 size);
-uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint32 size);
+// todo(jbr) should some "create" functions be renamed to "init"?
+void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size);
+uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
+uint8* allocate_permanent(uint64 size);
+uint8* allocate_temp(uint64 size);
+
+
+struct Globals
+{
+	Memory_Allocator permanent_allocator;
+	Memory_Allocator temp_allocator;
+	LARGE_INTEGER clock_frequency;
+	bool sleep_granularity_was_set;
+};
+extern Globals* globals;
+void globals_init();

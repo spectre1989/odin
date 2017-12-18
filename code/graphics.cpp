@@ -83,9 +83,7 @@ void init(	State* out_state,
 			uint32 window_width, uint32 window_height, 
 			uint32 num_vertices, 
 			uint16* indices, uint32 num_indices, 
-			Log_Function* p_log_function, 
-			Memory_Allocator* p_perm_allocator,
-			Memory_Allocator* p_temp_allocator)
+			Log_Function* p_log_function)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -137,7 +135,7 @@ void init(	State* out_state,
 	assert( result == VK_SUCCESS );
 	assert( physical_device_count > 0 );
 	
-	VkPhysicalDevice* physical_devices = (VkPhysicalDevice*)memory_allocator_alloc(p_temp_allocator, sizeof(VkPhysicalDevice) * physical_device_count);
+	VkPhysicalDevice* physical_devices = (VkPhysicalDevice*)allocate_temp(sizeof(VkPhysicalDevice) * physical_device_count);
 
 	result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
 	assert( result == VK_SUCCESS );
@@ -162,7 +160,7 @@ void init(	State* out_state,
 			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, 0 );
 			assert( result == VK_SUCCESS );
 
-			VkExtensionProperties* device_extensions = (VkExtensionProperties*)memory_allocator_alloc(p_temp_allocator, sizeof(VkExtensionProperties) * extension_count);
+			VkExtensionProperties* device_extensions = (VkExtensionProperties*)allocate_temp(sizeof(VkExtensionProperties) * extension_count);
 			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, device_extensions );
 			assert( result == VK_SUCCESS );
 
@@ -188,7 +186,7 @@ void init(	State* out_state,
 
 				if( format_count && present_mode_count ) 
 				{
-					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)memory_allocator_alloc(p_temp_allocator, sizeof(VkSurfaceFormatKHR) * format_count);
+					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)allocate_temp(sizeof(VkSurfaceFormatKHR) * format_count);
 				    result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
 				    assert( result == VK_SUCCESS );
 
@@ -203,7 +201,7 @@ void init(	State* out_state,
 						swapchain_surface_format = surface_formats[0];
 				    }
 
-					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)memory_allocator_alloc(p_temp_allocator, sizeof(VkPresentModeKHR) * present_mode_count);
+					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)allocate_temp(sizeof(VkPresentModeKHR) * present_mode_count);
 				    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
 				    assert( result == VK_SUCCESS );
 
@@ -257,7 +255,7 @@ void init(	State* out_state,
 	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
 	assert( queue_family_count > 0 );
 
-	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)memory_allocator_alloc(p_temp_allocator, sizeof(VkQueueFamilyProperties) * queue_family_count);
+	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)allocate_temp(sizeof(VkQueueFamilyProperties) * queue_family_count);
 
 	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
 
@@ -369,11 +367,11 @@ void init(	State* out_state,
 	result = vkGetSwapchainImagesKHR( out_state->device, out_state->swapchain, &swapchain_image_count, 0 );
 	assert( result == VK_SUCCESS );
 	
-	VkImage* swapchain_images = (VkImage*)memory_allocator_alloc(p_temp_allocator, sizeof(VkImage) * swapchain_image_count);
+	VkImage* swapchain_images = (VkImage*)allocate_temp(sizeof(VkImage) * swapchain_image_count);
 	result = vkGetSwapchainImagesKHR( out_state->device, out_state->swapchain, &swapchain_image_count, swapchain_images );
 	assert( result == VK_SUCCESS );
 
-	VkImageView* swapchain_image_views = (VkImageView*)memory_allocator_alloc(p_temp_allocator, sizeof(VkImageView) * swapchain_image_count);
+	VkImageView* swapchain_image_views = (VkImageView*)allocate_temp(sizeof(VkImageView) * swapchain_image_count);
 	
 	VkImageViewCreateInfo image_view_create_info = {};
 	image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -401,7 +399,7 @@ void init(	State* out_state,
 	assert(file != INVALID_HANDLE_VALUE);
 	DWORD vert_shader_size = GetFileSize(file, 0);
 	assert(vert_shader_size != INVALID_FILE_SIZE);
-	uint8* vert_shader_bytes = memory_allocator_alloc(p_temp_allocator, vert_shader_size);
+	uint8* vert_shader_bytes = allocate_temp(vert_shader_size);
 	bool32 read_success = ReadFile(file, vert_shader_bytes, vert_shader_size, 0, 0);
 	assert(read_success);
 
@@ -409,7 +407,7 @@ void init(	State* out_state,
 	assert(file != INVALID_HANDLE_VALUE);
 	DWORD frag_shader_size = GetFileSize(file, 0);
 	assert(frag_shader_size != INVALID_FILE_SIZE);
-	uint8* frag_shader_bytes = memory_allocator_alloc(p_temp_allocator, frag_shader_size);
+	uint8* frag_shader_bytes = allocate_temp(frag_shader_size);
 	read_success = ReadFile(file, frag_shader_bytes, frag_shader_size, 0, 0);
 	assert(read_success);
 
@@ -574,7 +572,7 @@ void init(	State* out_state,
 	result = vkCreateGraphicsPipelines(out_state->device, 0, 1, &pipeline_create_info, 0, &graphics_pipeline);
 	assert(result == VK_SUCCESS);
 	
-	VkFramebuffer* swapchain_framebuffers = (VkFramebuffer*)memory_allocator_alloc(p_temp_allocator, sizeof(VkFramebuffer) * swapchain_image_count);
+	VkFramebuffer* swapchain_framebuffers = (VkFramebuffer*)allocate_temp(sizeof(VkFramebuffer) * swapchain_image_count);
 	for(uint32 i = 0; i < swapchain_image_count; ++i)
 	{
 		VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -619,7 +617,7 @@ void init(	State* out_state,
 	VkCommandPool command_pool;
 	vkCreateCommandPool(out_state->device, &command_pool_create_info, 0, &command_pool);
 
-	out_state->command_buffers = (VkCommandBuffer*)memory_allocator_alloc(p_perm_allocator, sizeof(VkCommandBuffer) * swapchain_image_count);
+	out_state->command_buffers = (VkCommandBuffer*)allocate_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
 	command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	command_buffer_allocate_info.commandPool = command_pool;

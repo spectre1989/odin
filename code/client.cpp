@@ -10,7 +10,8 @@
 
 
 
-static Player_Input g_input;
+static Player_Input g_input; // todo(jbr) put this in a client globals struct
+Globals* globals;
 
 
 static void log_v(const char* format, va_list args)
@@ -49,21 +50,6 @@ static void update_input(WPARAM keycode, bool32 value)
 			g_input.down = value;
 		break;
 	}
-}
-
-constexpr uint64 kilobytes(uint32 kb)
-{
-	return kb * 1024;
-}
-
-constexpr uint64 megabytes(uint32 mb)
-{
-	return kilobytes(mb * 1024);
-}
-
-constexpr uint64 gigabytes(uint32 gb)
-{
-	return megabytes(gb * 1024);
 }
 
 LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
@@ -127,19 +113,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 	ShowWindow( window_handle, cmd_show );
 
-	// make some allocators
-	constexpr uint64 c_perm_mem_size = megabytes(64);
-	constexpr uint64 c_temp_mem_size = megabytes(64);
-	uint8* memory = (uint8*)VirtualAlloc((LPVOID)gigabytes(1), c_perm_mem_size + c_temp_mem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	Memory_Allocator perm_allocator;
-	memory_allocator_create(&perm_allocator, memory, c_perm_mem_size);
-	Memory_Allocator temp_allocator;
-	memory_allocator_create(&temp_allocator, memory + c_perm_mem_size, c_temp_mem_size);
 	
+	// do this before anything else
+	globals_init();
 
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
-	Graphics::Vertex vertices[c_num_vertices];
+	Graphics::Vertex vertices[c_num_vertices]; // todo(jbr) stuff like this goes in permanent mem
 
 	srand((unsigned int)time(0));
 	for (uint32 i = 0; i < c_max_clients; ++i)
@@ -183,7 +163,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state; // todo(jbr) move stuff like this to permanent memory
-	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v, &perm_allocator, &temp_allocator);
+	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v);
 
 	if (!Net::init(&log_v))
 	{
