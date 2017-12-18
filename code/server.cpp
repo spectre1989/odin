@@ -16,24 +16,16 @@ Globals* globals;
 
 
 
-static void log_v(const char* format, va_list args)
+static void log_func(const char* format, va_list args)
 {
 	vprintf(format, args);
 }
 
-static void log(const char* format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	log_v(format, args);
-	va_end(args);
-}
-
 void main()
 {
-	globals_init();
+	globals_init(&log_func);
 
-	if (!Net::init(&log_v))
+	if (!Net::init())
 	{
 		return;
 	}

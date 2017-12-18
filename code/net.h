@@ -7,7 +7,7 @@ namespace Net
 {
 
 
-bool init(Log_Function* p_log_function);
+bool init();
 
 
 struct IP_Endpoint

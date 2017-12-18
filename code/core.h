@@ -54,8 +54,10 @@ struct Globals
 {
 	Memory_Allocator permanent_allocator;
 	Memory_Allocator temp_allocator;
+	Log_Function* log_function;
 	LARGE_INTEGER clock_frequency;
 	bool sleep_granularity_was_set;
 };
 extern Globals* globals;
-void globals_init();
+void globals_init(Log_Function* log_func);
+void log(const char* format, ...);

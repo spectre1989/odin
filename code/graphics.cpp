@@ -5,14 +5,6 @@ namespace Graphics
 {
 
 
-static void log(Log_Function* p_log_function, const char* format, ...)
-{
-	// todo(jbr) define out in release
-	va_list args;
-	va_start(args, format);
-	p_log_function(format, args);
-	va_end(args);
-}
 
 // the return value indicates whether the calling layer should abort the vulkan call
 static VkBool32 VKAPI_PTR 
@@ -23,8 +15,7 @@ vulkan_debug_callback(	VkDebugReportFlagsEXT /*flags*/,
 {
 	if (user_data)
 	{
-		Log_Function* p_log_function = (Log_Function*)user_data;
-		log(p_log_function, "[graphics::vulkan::%s] %s\n", layer_prefix, msg);
+		log("[graphics::vulkan::%s] %s\n", layer_prefix, msg);
 	}
     return VK_FALSE;
 }
@@ -82,8 +73,7 @@ void init(	State* out_state,
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
 			uint32 num_vertices, 
-			uint16* indices, uint32 num_indices, 
-			Log_Function* p_log_function)
+			uint16* indices, uint32 num_indices)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -109,7 +99,6 @@ void init(	State* out_state,
 	debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 	debug_callback_create_info.pfnCallback = vulkan_debug_callback;
-	debug_callback_create_info.pUserData = p_log_function;
 
 	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
 	assert( vkCreateDebugReportCallbackEXT );

@@ -14,19 +14,11 @@ static Player_Input g_input; // todo(jbr) put this in a client globals struct
 Globals* globals;
 
 
-static void log_v(const char* format, va_list args)
+static void log_func(const char* format, va_list args)
 {
 	char buffer[512];
 	vsnprintf(buffer, 512, format, args);
 	OutputDebugStringA(buffer);
-}
-
-static void log(const char* format, ...)
-{
-	va_list args;
-	va_start(args, format);
-	log_v(format, args);
-	va_end(args);
 }
 
 // todo(jbr) input thread
@@ -115,7 +107,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	
 	// do this before anything else
-	globals_init();
+	globals_init(&log_func);
 
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
@@ -163,9 +155,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State graphics_state; // todo(jbr) move stuff like this to permanent memory
-	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices, &log_v);
+	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices);
 
-	if (!Net::init(&log_v))
+	if (!Net::init())
 	{
 		return 0;
 	}

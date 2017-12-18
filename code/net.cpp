@@ -7,32 +7,9 @@ namespace Net
 {
 
 
-static Log_Function* gp_log_function;
 
-static void log(const char* format, ...)
+bool init()
 {
-	// todo(jbr) define out this call in release
-	va_list args;
-	va_start(args, format);
-	gp_log_function(format, args);
-	va_end(args);
-}
-
-static void log_null(const char*, va_list)
-{
-}
-
-bool init(Log_Function* p_log_function)
-{
-	if (p_log_function)
-	{
-		gp_log_function = p_log_function;
-	}
-	else
-	{
-		gp_log_function = &log_null;
-	}
-
 	WORD winsock_version = 0x202;
 	WSADATA winsock_data;
 	if (WSAStartup(winsock_version, &winsock_data))

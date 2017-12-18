@@ -82,7 +82,7 @@ static constexpr uint64 gigabytes(uint32 gb)
 	return megabytes(gb * 1024);
 }
 
-void globals_init()
+void globals_init(Log_Function* log_func)
 {
 	constexpr uint64 c_permanent_memory_size = megabytes(64);
 	constexpr uint64 c_temp_memory_size = megabytes(64);
@@ -95,7 +95,18 @@ void globals_init()
 	
 	memory_allocator_create(&globals->permanent_allocator, memory + sizeof(Globals), c_permanent_memory_size - sizeof(Globals));
 	memory_allocator_create(&globals->temp_allocator, memory + c_permanent_memory_size, c_temp_memory_size);
+	globals->log_function = log_func;
 	QueryPerformanceFrequency(&globals->clock_frequency);
 	UINT sleep_granularity_ms = 1;
 	globals->sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
+}
+
+void log(const char* format, ...)
+{
+	assert(globals->log_function);
+
+	va_list args;
+	va_start(args, format);
+	globals->log_function(format, args);
+	va_end(args);
 }
