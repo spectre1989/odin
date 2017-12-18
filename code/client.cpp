@@ -7,11 +7,19 @@
 #include "graphics.h"
 #include "net.h"
 #include "net_msgs.h"
+#include "player.h"
 
 
 
-static Player_Input g_input; // todo(jbr) put this in a client globals struct
+struct Client_Globals
+{
+	Player_Input player_input;
+};
+
+
 Globals* globals;
+Client_Globals* client_globals;
+
 
 
 static void log_func(const char* format, va_list args)
@@ -27,19 +35,19 @@ static void update_input(WPARAM keycode, bool32 value)
 	switch (keycode)
 	{
 		case 'A':
-			g_input.left = value;
+			client_globals->player_input.left = value;
 		break;
 
 		case 'D':
-			g_input.right = value;
+			client_globals->player_input.right = value;
 		break;
 
 		case 'W':
-			g_input.up = value;
+			client_globals->player_input.up = value;
 		break;
 
 		case 'S':
-			g_input.down = value;
+			client_globals->player_input.down = value;
 		break;
 	}
 }
@@ -108,6 +116,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	
 	// do this before anything else
 	globals_init(&log_func);
+	client_globals = (Client_Globals*)alloc_permanent(sizeof(Client_Globals));
+	client_globals->player_input = {};
 
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
@@ -327,18 +337,18 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			tick_number != (uint32)-1)
 		{
 			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &g_input, time_ms, tick_number);
+			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &client_globals->player_input, time_ms, tick_number);
 			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);
 
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
-				tick_player(&me, &g_input);
+				tick_player(&me, &client_globals->player_input);
 				++tick_number;
 
 				// todo(jbr) detect and handle buffer being full
 				prediction_history_state[prediction_history_tail] = me;
-				prediction_history_input[prediction_history_tail] = g_input;
+				prediction_history_input[prediction_history_tail] = client_globals->player_input;
 				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
 			}
 

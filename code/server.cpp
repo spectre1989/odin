@@ -4,7 +4,7 @@
 #include "core.h"
 #include "net.h"
 #include "net_msgs.h"
-#include "odin.h"
+#include "player.h"
 
 
 

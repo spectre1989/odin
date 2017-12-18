@@ -4,6 +4,7 @@
 #include <windows.h>
 
 
+
 typedef unsigned long long uint64;
 typedef unsigned int uint32;
 typedef unsigned short uint16;
@@ -19,11 +20,24 @@ typedef double float64;
 typedef void (Log_Function)(const char*, va_list);
 
 
+
+constexpr uint16 	c_port = 9999;
+constexpr uint32 	c_socket_buffer_size = 1024;
+constexpr uint32	c_max_clients = 32;
+constexpr uint32	c_ticks_per_second = 60;
+constexpr float32	c_seconds_per_tick = 1.0f / (float32)c_ticks_per_second;
+constexpr float32 	c_turn_speed = 1.0f;	// how fast player turns
+constexpr float32 	c_acceleration = 20.0f;
+constexpr float32 	c_max_speed = 50.0f;
+
+
+
 #ifndef RELEASE
 #define assert(x) if (!(x)) { int* p = 0; *p = 0; }
 #else
 #define assert(x)
 #endif
+
 
 
 struct Timer
@@ -36,6 +50,7 @@ float32 timer_get_s(Timer* timer);
 void	timer_wait_until(Timer* timer, float32 wait_time_s);
 
 
+
 struct Memory_Allocator
 {
 	uint8* memory;
@@ -46,8 +61,9 @@ struct Memory_Allocator
 // todo(jbr) should some "create" functions be renamed to "init"?
 void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size);
 uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
-uint8* allocate_permanent(uint64 size);
-uint8* allocate_temp(uint64 size);
+uint8* alloc_permanent(uint64 size);
+uint8* alloc_temp(uint64 size);
+
 
 
 struct Globals

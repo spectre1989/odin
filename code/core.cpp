@@ -56,16 +56,15 @@ uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size)
 	return mem;
 }
 
-uint8* allocate_permanent(uint64 size)
+uint8* alloc_permanent(uint64 size)
 {
 	return memory_allocator_alloc(&globals->permanent_allocator, size);
 }
 
-uint8* allocate_temp(uint64 size)
+uint8* alloc_temp(uint64 size)
 {
 	return memory_allocator_alloc(&globals->temp_allocator, size);
 }
-
 
 static constexpr uint64 kilobytes(uint32 kb)
 {

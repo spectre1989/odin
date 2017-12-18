@@ -1,5 +1,8 @@
 #include "net_msgs.h"
 
+#include "player.h"
+
+
 
 namespace Net
 {

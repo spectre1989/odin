@@ -1,7 +1,13 @@
 #pragma once
 
 #include "net.h"
-#include "odin.h"
+
+
+
+struct Player_Input;
+struct Player_State;
+struct Player_Visual_State;
+
 
 
 namespace Net
