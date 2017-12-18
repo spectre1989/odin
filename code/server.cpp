@@ -226,6 +226,7 @@ void main()
 		++tick_number;
 		
 		// create and send state packets
+		// todo(jbr) decouple tick rate from state packet rate
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
