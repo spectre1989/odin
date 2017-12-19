@@ -121,7 +121,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
-	Graphics::Vertex vertices[c_num_vertices]; // todo(jbr) stuff like this goes in permanent mem
+	Graphics::Vertex* vertices = (Graphics::Vertex*)alloc_permanent(sizeof(Graphics::Vertex) * c_num_vertices);
 
 	srand((unsigned int)time(0));
 	for (uint32 i = 0; i < c_max_clients; ++i)
@@ -151,7 +151,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	constexpr uint32 c_num_indices = 6 * c_max_clients;
-	uint16 indices[c_num_indices];
+	uint16* indices = (uint16*)alloc_permanent(sizeof(uint16) * c_num_indices);
 	
 	for(uint16 index = 0, vertex = 0; index < c_num_indices; index += 6, vertex += 4)
 	{
@@ -164,8 +164,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		indices[index + 5] = vertex + 2;		// 2
 	}
 
-	Graphics::State graphics_state; // todo(jbr) move stuff like this to permanent memory
-	Graphics::init(&graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices);
+	Graphics::State* graphics_state = (Graphics::State*)alloc_permanent(sizeof(Graphics::State));
+	Graphics::init(graphics_state, window_handle, instance, c_window_width, c_window_height, c_num_vertices, indices, c_num_indices);
 
 	if (!Net::init())
 	{
@@ -178,24 +178,24 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 	Net::socket_set_fake_lag_s(&sock, 0.2f); // 200ms of fake lag
 
-	uint8 buffer[c_socket_buffer_size];
+	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 
-	uint32 join_msg_size = Net::client_msg_join_write(buffer);
-	if (!Net::socket_send(&sock, buffer, join_msg_size, &server_endpoint))
+	uint32 join_msg_size = Net::client_msg_join_write(socket_buffer);
+	if (!Net::socket_send(&sock, socket_buffer, join_msg_size, &server_endpoint))
 	{
 		return 0;
 	}
 
 
-	Player_State me {};
+	Player_State* me = (Player_State*)alloc_permanent(sizeof(Player_State));
 	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
-	Player_State prediction_history_state[c_max_predicted_ticks];
-	Player_Input prediction_history_input[c_max_predicted_ticks];
+	Player_State* prediction_history_state = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_predicted_ticks);
+	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_predicted_ticks);
 	uint32 prediction_history_head = 0;
 	uint32 prediction_history_tail = 0;
 	uint32 prediction_history_head_tick_number = 0;
-	Player_Visual_State objects[c_max_clients];
+	Player_Visual_State* objects = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
 	uint32 num_objects = 0;
 	uint32 slot = (uint32)-1;
 	uint32 tick_number = (uint32)-1;
@@ -237,14 +237,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		// Process Packets
 		uint32 bytes_received;
 		Net::IP_Endpoint from;
-		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &bytes_received, &from))
+		while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
-			switch (buffer[0])
+			switch (socket_buffer[0])
 			{
 				case Net::Server_Message::Join_Result:
 				{
 					bool32 success;
-					Net::server_msg_join_result_read(buffer, &success, &slot);
+					Net::server_msg_join_result_read(socket_buffer, &success, &slot);
 					if (!success)
 					{
 						log("[client] server didn't let us in\n");
@@ -258,7 +258,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					uint32 state_timestamp;
 					Player_State state_my_object;
 					uint32 state_num_other_objects;
-					Net::server_msg_state_read(buffer, &state_tick_number, &state_my_object, &state_timestamp, objects, c_max_clients, &state_num_other_objects);
+					Net::server_msg_state_read(socket_buffer, &state_tick_number, &state_my_object, &state_timestamp, objects, c_max_clients, &state_num_other_objects);
 
 					num_objects = state_num_other_objects + 1;
 
@@ -276,7 +276,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					 	state_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
-						me = state_my_object;
+						*me = state_my_object;
 						tick_number = target_tick_number;
 						prediction_history_head = 0;
 						prediction_history_tail = 0;
@@ -306,12 +306,12 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 							{
 								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), state_tick_number);
 
-								me = state_my_object;
+								*me = state_my_object;
 								uint32 i = prediction_history_head;
 								uint32 prev_i;
 								while (true)
 								{
-									prediction_history_state[i] = me;
+									prediction_history_state[i] = *me;
 
 									prev_i = i;
 									i = (prev_i + 1) % c_max_predicted_ticks;
@@ -321,7 +321,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 										break;
 									}
 
-									tick_player(&me, &prediction_history_input[prev_i]);
+									tick_player(me, &prediction_history_input[prev_i]);
 								}
 							}
 						}
@@ -337,17 +337,17 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			tick_number != (uint32)-1)
 		{
 			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-			uint32 input_msg_size = Net::client_msg_input_write(buffer, slot, &client_globals->player_input, time_ms, tick_number);
-			Net::socket_send(&sock, buffer, input_msg_size, &server_endpoint);
+			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, slot, &client_globals->player_input, time_ms, tick_number);
+			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
 
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
-				tick_player(&me, &client_globals->player_input);
+				tick_player(me, &client_globals->player_input);
 				++tick_number;
 
 				// todo(jbr) detect and handle buffer being full
-				prediction_history_state[prediction_history_tail] = me;
+				prediction_history_state[prediction_history_tail] = *me;
 				prediction_history_input[prediction_history_tail] = client_globals->player_input;
 				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
 			}
@@ -355,9 +355,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			++target_tick_number;
 
 			// we're always the last object in the array
-			objects[num_objects - 1].x = me.x;
-			objects[num_objects - 1].y = me.y;
-			objects[num_objects - 1].facing = me.facing;
+			objects[num_objects - 1].x = me->x;
+			objects[num_objects - 1].y = me->y;
+			objects[num_objects - 1].facing = me->facing;
 		}
 
 
@@ -386,14 +386,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				vertices[verts_start + j].pos_x = vertices[verts_start + j].pos_y = 0.0f;
 			}
 		}
-		Graphics::update_and_draw(vertices, c_num_vertices, &graphics_state);
+		Graphics::update_and_draw(vertices, c_num_vertices, graphics_state);
 
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick);
 	}
 
-	uint32 leave_msg_size = Net::client_msg_leave_write(buffer, slot);
-	Net::socket_send(&sock, buffer, leave_msg_size, &server_endpoint);
+	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, slot);
+	Net::socket_send(&sock, socket_buffer, leave_msg_size, &server_endpoint);
 	Net::socket_close(&sock);
 
 	return exit_code;

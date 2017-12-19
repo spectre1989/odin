@@ -44,29 +44,31 @@ void main()
 		return;
 	}
 
-	uint8 buffer[c_socket_buffer_size];
-	Net::IP_Endpoint client_endpoints[c_max_clients];
-	float32 time_since_heard_from_clients[c_max_clients];
-	Player_State client_objects[c_max_clients];
-	Player_Input client_inputs[c_max_clients];
-	Player_Input client_input_buffer_inputs[c_ticks_per_second][c_max_clients];
-	uint32 client_input_buffer_test[c_ticks_per_second][c_max_clients];
-	uint32 client_input_buffer_head = 0;
-	uint32 client_timestamps[c_max_clients];
-	uint32 tick_number = 0;
-	Timer tick_timer = timer_create();
-
+	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
+	Net::IP_Endpoint* client_endpoints = (Net::IP_Endpoint*)alloc_permanent(sizeof(Net::IP_Endpoint) * c_max_clients);
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		client_endpoints[i] = {};
 	}
+	float32* time_since_heard_from_clients = (float32*)alloc_permanent(sizeof(float32) * c_max_clients);
+	Player_State* client_objects = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_clients);
+	Player_Input* client_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
+	Player_Input** client_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_ticks_per_second);
+	uint32** client_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_ticks_per_second);
 	for (uint32 i = 0; i < c_ticks_per_second; ++i)
 	{
+		client_input_buffer_inputs[i] = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
+		client_input_buffer_test[i] = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
 		for (uint32 j = 0; j < c_max_clients; ++j)
 		{
 			client_input_buffer_test[i][j] = 0;
 		}
-	}	
+	}
+	uint32 client_input_buffer_head = 0;
+	uint32* client_timestamps = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
+	uint32 tick_number = 0;
+	Timer tick_timer = timer_create();
+
 
 	bool32 is_running = 1;
 	while (is_running)
@@ -76,9 +78,9 @@ void main()
 		// read all available packets
 		uint32 bytes_received;
 		Net::IP_Endpoint from;
-		while (Net::socket_receive(&sock, buffer, c_socket_buffer_size, &bytes_received, &from))
+		while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
-			switch (buffer[0])
+			switch (socket_buffer[0])
 			{
 				case Net::Client_Message::Join:
 				{
@@ -102,8 +104,8 @@ void main()
 						log("[server] client will be assigned to slot %hu\n", slot);
 
 						bool32 success = true;
-						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
-						if (Net::socket_send(&sock, buffer, join_result_msg_size, &from))
+						uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
+						if (Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from))
 						{
 							client_endpoints[slot] = from;
 							time_since_heard_from_clients[slot] = 0.0f;
@@ -117,8 +119,8 @@ void main()
 						log("[server] could not find a slot for player\n");
 						
 						bool32 success = false;
-						uint32 join_result_msg_size = Net::server_msg_join_result_write(buffer, success, slot);
-						Net::socket_send(&sock, buffer, join_result_msg_size, &from);
+						uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
+						Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from);
 					}
 				}
 				break;
@@ -126,7 +128,7 @@ void main()
 				case Net::Client_Message::Leave:
 				{
 					uint32 slot;
-					Net::client_msg_leave_read(buffer, &slot);
+					Net::client_msg_leave_read(socket_buffer, &slot);
 
 					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
@@ -153,7 +155,7 @@ void main()
 					Player_Input input;
 					uint32 timestamp;
 					uint32 input_tick_number;
-					Net::client_msg_input_read(buffer, &slot, &input, &timestamp, &input_tick_number);
+					Net::client_msg_input_read(socket_buffer, &slot, &input, &timestamp, &input_tick_number);
 
 					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
@@ -232,9 +234,9 @@ void main()
 			if (client_endpoints[i].address)
 			{
 				uint32 target_player = i;
-				uint32 state_msg_size = Net::server_msg_state_write(buffer, client_endpoints, client_objects, c_max_clients, tick_number, target_player, client_timestamps[target_player]);
+				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, client_endpoints, client_objects, c_max_clients, tick_number, target_player, client_timestamps[target_player]);
 
-				if (!Net::socket_send(&sock, buffer, state_msg_size, &client_endpoints[i]))
+				if (!Net::socket_send(&sock, socket_buffer, state_msg_size, &client_endpoints[i]))
 				{
 					log("[server] sendto failed: %d\n", WSAGetLastError());
 				}

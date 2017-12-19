@@ -115,7 +115,6 @@ bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* e
 	server_address.sin_port = htons(endpoint->port);
 	int server_address_size = sizeof(server_address);
 
-	// todo(jbr) handle failure of sendto on non-blocking sockets
 	if (sendto(sock->handle, (const char*)packet, packet_size, 0, (SOCKADDR*)&server_address, server_address_size) == SOCKET_ERROR)
 	{
 		log("[net] sendto() failed: %d\n", WSAGetLastError());
