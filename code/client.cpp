@@ -344,7 +344,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				prediction_history_state[prediction_history_tail] = *local_player;
 				prediction_history_input[prediction_history_tail] = client_globals->player_input;
 				// todo(jbr) detect and handle buffer being full
-				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
+				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks; // todo(jbr) this will break if buffer is ever full
 
 				tick_player(local_player, &client_globals->player_input);
 				++tick_number;

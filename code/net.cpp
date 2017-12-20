@@ -66,7 +66,7 @@ bool socket_create(Socket* out_socket)
 	int address_family = AF_INET;
 	int type = SOCK_DGRAM;
 	int protocol = IPPROTO_UDP;
-	SOCKET sock = socket(address_family, type, protocol);
+	SOCKET sock = socket(address_family, type, protocol); // todo(jbr) make sure internal buffer is big enough?
 
 	if (sock == INVALID_SOCKET)
 	{
@@ -259,6 +259,7 @@ void socket_close(Socket* sock)
 
 bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint)
 {
+	// todo(jbr) when sending, if packet buffer is full then send the oldest one and log a warning, when receiving, only call internal receive when there is actually room, and log warning
 	bool success = packet_buffer_push(&sock->send_buffer, packet, packet_size, endpoint, sock->fake_lag_s);
 	assert(success);
 
