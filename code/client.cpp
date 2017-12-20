@@ -118,7 +118,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	globals_init(&log_func);
 	client_globals = (Client_Globals*)alloc_permanent(sizeof(Client_Globals));
 	client_globals->player_input = {};
-
+	
 	// init graphics
 	constexpr uint32 c_num_vertices = 4 * c_max_clients;
 	Graphics::Vertex* vertices = (Graphics::Vertex*)alloc_permanent(sizeof(Graphics::Vertex) * c_num_vertices);
@@ -189,15 +189,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_State* me = (Player_State*)alloc_permanent(sizeof(Player_State));
+	Player_State* local_player = (Player_State*)alloc_permanent(sizeof(Player_State));
 	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
 	Player_State* prediction_history_state = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_predicted_ticks);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_predicted_ticks);
 	uint32 prediction_history_head = 0;
 	uint32 prediction_history_tail = 0;
 	uint32 prediction_history_head_tick_number = 0;
-	Player_Visual_State* objects = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
-	uint32 num_objects = 0;
+	Player_Visual_State* remote_players = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+	uint32 num_players = 0;
 	uint32 slot = (uint32)-1;
 	uint32 tick_number = (uint32)-1;
 	uint32 target_tick_number = (uint32)-1;
@@ -255,39 +255,39 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 				case Net::Server_Message::State:
 				{
-					uint32 state_tick_number;
-					uint32 state_timestamp;
-					Player_State state_my_object;
-					uint32 state_num_other_objects;
-					Net::server_msg_state_read(socket_buffer, &state_tick_number, &state_my_object, &state_timestamp, objects, c_max_clients, &state_num_other_objects);
+					uint32 received_tick_number;
+					uint32 received_timestamp;
+					Player_State received_local_player_state;
+					uint32 num_received_remote_players;
+					Net::server_msg_state_read(socket_buffer, &received_tick_number, &received_local_player_state, &received_timestamp, remote_players, c_max_clients, &num_received_remote_players);
 
-					num_objects = state_num_other_objects + 1;
+					num_players = num_received_remote_players + 1;
 
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-					uint32 est_rtt_ms = time_now_ms - state_timestamp;
+					uint32 est_rtt_ms = time_now_ms - received_timestamp;
 					
 					// predict at tick number of this state packet, plus rtt, plus a bit for jitter
 					// todo(jbr) better method of working out how much to predict
 					float32 est_rtt_s = est_rtt_ms / 1000.0f;
 					uint32 ticks_to_predict = (uint32)(est_rtt_s / c_seconds_per_tick);
 					ticks_to_predict += 2;
-					target_tick_number = state_tick_number + ticks_to_predict;
+					target_tick_number = received_tick_number + ticks_to_predict;
 
 					if (tick_number == (uint32)-1 ||
-					 	state_tick_number >= tick_number)
+					 	received_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
-						*me = state_my_object;
+						*local_player = received_local_player_state;
 						tick_number = target_tick_number;
 						prediction_history_head = 0;
 						prediction_history_tail = 0;
-						prediction_history_head_tick_number = tick_number + 1;
+						prediction_history_head_tick_number = tick_number;
 					}
 					else
 					{
 						uint32 prediction_history_size = prediction_history_tail > prediction_history_head ? prediction_history_tail - prediction_history_head : c_max_predicted_ticks - (prediction_history_head - prediction_history_tail);
 						while (prediction_history_size && 
-							prediction_history_head_tick_number < state_tick_number)
+							prediction_history_head_tick_number < received_tick_number)
 						{
 							// discard this one, not needed
 							++prediction_history_head_tick_number;
@@ -296,33 +296,30 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						}
 
 						if (prediction_history_size &&
-							prediction_history_head_tick_number == state_tick_number)
+							prediction_history_head_tick_number == received_tick_number)
 						{
-							float32 dx = prediction_history_state[prediction_history_head].x - state_my_object.x;
-							float32 dy = prediction_history_state[prediction_history_head].y - state_my_object.y;
+							float32 dx = prediction_history_state[prediction_history_head].x - received_local_player_state.x;
+							float32 dy = prediction_history_state[prediction_history_head].y - received_local_player_state.y;
 							constexpr float32 c_max_error = 0.01f;
 							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 							float32 error_sq = (dx * dx) + (dy * dy);
 							if (error_sq > c_max_error_sq)
 							{
-								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), state_tick_number);
+								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
 
-								*me = state_my_object;
+								*local_player = received_local_player_state;
 								uint32 i = prediction_history_head;
-								uint32 prev_i;
 								while (true)
 								{
-									prediction_history_state[i] = *me;
+									prediction_history_state[i] = *local_player;
 
-									prev_i = i;
-									i = (prev_i + 1) % c_max_predicted_ticks;
+									tick_player(local_player, &prediction_history_input[i]);
 
+									i = (i + 1) % c_max_predicted_ticks;
 									if (i == prediction_history_tail)
 									{
 										break;
 									}
-
-									tick_player(me, &prediction_history_input[prev_i]);
 								}
 							}
 						}
@@ -344,30 +341,30 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
-				tick_player(me, &client_globals->player_input);
-				++tick_number;
-
-				// todo(jbr) detect and handle buffer being full
-				prediction_history_state[prediction_history_tail] = *me;
+				prediction_history_state[prediction_history_tail] = *local_player;
 				prediction_history_input[prediction_history_tail] = client_globals->player_input;
+				// todo(jbr) detect and handle buffer being full
 				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks;
+
+				tick_player(local_player, &client_globals->player_input);
+				++tick_number;
 			}
 
 			++target_tick_number;
 
-			// we're always the last object in the array
-			objects[num_objects - 1].x = me->x;
-			objects[num_objects - 1].y = me->y;
-			objects[num_objects - 1].facing = me->facing;
+			// we're always the last player in the array
+			remote_players[num_players - 1].x = local_player->x;
+			remote_players[num_players - 1].y = local_player->y;
+			remote_players[num_players - 1].facing = local_player->facing;
 		}
 
 
 		// Draw
-		for (uint32 i = 0; i < num_objects; ++i)
+		for (uint32 i = 0; i < num_players; ++i)
 		{
 			constexpr float32 size = 0.05f;
-			float32 x = objects[i].x * 0.01f;
-			float32 y = objects[i].y * -0.01f;
+			float32 x = remote_players[i].x * 0.01f;
+			float32 y = remote_players[i].y * -0.01f;
 
 			uint32 verts_start = i * 4;
 			vertices[verts_start].pos_x = x - size; // TL (hdc y is +ve down screen)
@@ -379,7 +376,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			vertices[verts_start + 3].pos_x = x + size; // TR
 			vertices[verts_start + 3].pos_y = y - size;
 		}
-		for (uint32 i = num_objects; i < c_max_clients; ++i)
+		for (uint32 i = num_players; i < c_max_clients; ++i)
 		{
 			uint32 verts_start = i * 4;
 			for (uint32 j = 0; j < 4; ++j)

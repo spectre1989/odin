@@ -11,12 +11,9 @@ static VkBool32 VKAPI_PTR
 vulkan_debug_callback(	VkDebugReportFlagsEXT /*flags*/,
 						VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
 						size_t /*location*/, int32_t /*code*/, 
-						const char* layer_prefix, const char* msg, void* user_data) 
+						const char* layer_prefix, const char* msg, void* /*user_data*/) 
 {
-	if (user_data)
-	{
-		log("[graphics::vulkan::%s] %s\n", layer_prefix, msg);
-	}
+	log("[graphics::vulkan::%s] %s\n", layer_prefix, msg);
     return VK_FALSE;
 }
 
