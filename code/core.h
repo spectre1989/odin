@@ -22,7 +22,7 @@ typedef void (Log_Function)(const char*, va_list);
 
 
 constexpr uint16 	c_port = 9999;
-constexpr uint32 	c_socket_buffer_size = 1024;
+constexpr uint32 	c_packet_budget_per_tick = 1024;
 constexpr uint32	c_max_clients = 32;
 constexpr uint32	c_ticks_per_second = 60;
 constexpr float32	c_seconds_per_tick = 1.0f / (float32)c_ticks_per_second;
@@ -56,9 +56,7 @@ struct Memory_Allocator
 	uint8* memory;
 	uint8* next;
 	uint64 bytes_remaining;
-}; // todo(jbr) stick allocators in globals, and then make convenient functions like alloc_permanent alloc_temp etc
-// todo(jbr) strip back the DI, only use where actually needed - i.e. hooking up client to use debug output, and server printf, but store that callback in globals, stop prematurely abstracting
-// todo(jbr) should some "create" functions be renamed to "init"?
+};
 void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size);
 uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
 uint8* alloc_permanent(uint64 size);

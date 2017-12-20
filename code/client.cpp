@@ -176,8 +176,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	{
 		return 0;
 	}
-	Net::socket_set_fake_lag_s(&sock, 0.2f); // 200ms of fake lag
+	Net::socket_set_fake_lag_s(&sock, 0.2f, c_ticks_per_second, c_ticks_per_second, c_packet_budget_per_tick); // 200ms of fake lag
 
+	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
 	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
 

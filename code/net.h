@@ -36,24 +36,21 @@ namespace Internal
 #ifdef FAKE_LAG
 } // namespace Internal
 
-// just capping at 1 second for now
-// todo(jbr) urgh, not this
-constexpr uint32 c_packet_buffer_size = 60;
 
 struct Packet_Buffer
 {
 	uint32 head;
 	uint32 tail;
-	LARGE_INTEGER times[c_packet_buffer_size];
-	IP_Endpoint endpoints[c_packet_buffer_size];
-	uint32 packet_sizes[c_packet_buffer_size];
-	uint8 packets[c_packet_buffer_size][1024]; // todo(jbr) :(
+	uint32 size;
+	uint32 available;
+	uint32 max_packet_size;
+	uint8* packets;
+	uint32* packet_sizes;
+	IP_Endpoint* endpoints;
+	LARGE_INTEGER* times;
 };
 
-// todo(jbr) custom allocator
-// just allocate bytes and use like a circular buffer, rather than full 1024
-// per packet
-// jitter simulation
+// todo(jbr) jitter simulation
 // packet loss simulation
 // out of order delivery simulation
 // duplication simulation
@@ -62,7 +59,8 @@ struct Socket
 	Internal::Socket sock;
 	float32 fake_lag_s;
 	Packet_Buffer send_buffer;
-	Packet_Buffer receive_buffer;
+	Packet_Buffer recv_buffer;
+	bool32 has_sent_at_least_one_packet;
 };
 
 #endif // #ifdef FAKE_LAG
@@ -72,7 +70,11 @@ void socket_close(Socket* sock);
 bool socket_bind(Socket* sock, IP_Endpoint* local_endpoint);
 bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint);
 bool socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out_packet_size, IP_Endpoint* out_from);
-void socket_set_fake_lag_s(Socket* sock, float32 fake_lag_s);
+void socket_set_fake_lag_s(	Socket* sock, 
+							float32 fake_lag_s, 
+							uint32 max_packets_in_per_sec, 
+							uint32 max_packets_out_per_sec, 
+							uint32 max_packet_size);
 
 
 } // namespace Net

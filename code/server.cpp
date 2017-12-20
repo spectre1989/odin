@@ -44,6 +44,7 @@ void main()
 		return;
 	}
 
+	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
 	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
 	Net::IP_Endpoint* client_endpoints = (Net::IP_Endpoint*)alloc_permanent(sizeof(Net::IP_Endpoint) * c_max_clients);
 	for (uint32 i = 0; i < c_max_clients; ++i)

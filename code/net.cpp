@@ -151,7 +151,11 @@ bool socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out
 	return true;
 }
 
-void socket_set_fake_lag_s(Socket* /*sock*/, float32 /*fake_lag_s*/)
+void socket_set_fake_lag_s(	Socket* /*sock*/, 
+							float32 /*fake_lag_s*/, 
+							uint32 /*max_packets_in_per_sec*/, 
+							uint32 /*max_packets_out_per_sec*/, 
+							uint32 /*max_packet_size*/)
 {
 }
 
@@ -159,36 +163,47 @@ void socket_set_fake_lag_s(Socket* /*sock*/, float32 /*fake_lag_s*/)
 } // namespace Internal
 
 
+static void packet_buffer_create(Packet_Buffer* packet_buffer, uint32 max_packets, uint32 max_packet_size)
+{
+	*packet_buffer = {};
+	packet_buffer->available = max_packets;
+	packet_buffer->size = max_packets;
+	packet_buffer->max_packet_size = max_packet_size;
+	packet_buffer->packets = alloc_permanent(max_packets * max_packet_size);
+	packet_buffer->packet_sizes = (uint32*)alloc_permanent(sizeof(uint32) * max_packets);
+	packet_buffer->endpoints = (IP_Endpoint*)alloc_permanent(sizeof(IP_Endpoint) * max_packets);
+	packet_buffer->times = (LARGE_INTEGER*)alloc_permanent(sizeof(LARGE_INTEGER) * max_packets);
+}
+
 static bool packet_buffer_push(Packet_Buffer* packet_buffer, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint, float32 fake_lag_s)
 {
-	if ((packet_buffer->tail - packet_buffer->head) == c_packet_buffer_size)
+	if (!packet_buffer->available)
 	{
 		return false;
 	}
-
-	LARGE_INTEGER clock_frequency;
-	QueryPerformanceFrequency(&clock_frequency);
 
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
 	LARGE_INTEGER then;
-	then.QuadPart = now.QuadPart + (LONGLONG)(clock_frequency.QuadPart * fake_lag_s);
+	then.QuadPart = now.QuadPart + (LONGLONG)(globals->clock_frequency.QuadPart * fake_lag_s);
 
-	uint32 tail = packet_buffer->tail % c_packet_buffer_size;
-	packet_buffer->times[tail] = then;
-	packet_buffer->packet_sizes[tail] = packet_size;
-	packet_buffer->endpoints[tail] = *endpoint;
-	memcpy(packet_buffer->packets[tail], packet, packet_size);
+	packet_buffer->times[packet_buffer->tail] = then;
+	packet_buffer->packet_sizes[packet_buffer->tail] = packet_size;
+	packet_buffer->endpoints[packet_buffer->tail] = *endpoint;
 
-	++packet_buffer->tail;
+	uint8* dst_packet = &packet_buffer->packets[packet_buffer->tail * packet_buffer->max_packet_size];
+	memcpy(dst_packet, packet, packet_size);
+
+	packet_buffer->tail = (packet_buffer->tail + 1) % packet_buffer->size;
+	--packet_buffer->available;
 
 	return true;
 }
 
-static bool packet_buffer_pop(Packet_Buffer* packet_buffer, uint8* out_packet, uint32* out_packet_size, IP_Endpoint* out_endpoint)
+static bool packet_buffer_pop(Packet_Buffer* packet_buffer, uint8** out_packet, uint32* out_packet_size, IP_Endpoint* out_endpoint)
 {
-	if (packet_buffer->head == packet_buffer->tail)
+	if (packet_buffer->available == packet_buffer->size)
 	{
 		return false;
 	}
@@ -196,16 +211,14 @@ static bool packet_buffer_pop(Packet_Buffer* packet_buffer, uint8* out_packet, u
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
-	uint32 head = packet_buffer->head % c_packet_buffer_size;
-	if (packet_buffer->times[head].QuadPart <= now.QuadPart)
+	if (packet_buffer->times[packet_buffer->head].QuadPart <= now.QuadPart)
 	{
-		memcpy(out_packet, 
-			packet_buffer->packets[head], 
-			packet_buffer->packet_sizes[head]);
-		*out_packet_size = packet_buffer->packet_sizes[head];
-		*out_endpoint = packet_buffer->endpoints[head];
+		*out_packet = &packet_buffer->packets[packet_buffer->head * packet_buffer->max_packet_size]; 
+		*out_packet_size = packet_buffer->packet_sizes[packet_buffer->head];
+		*out_endpoint = packet_buffer->endpoints[packet_buffer->head];
 
-		++packet_buffer->head;
+		packet_buffer->head = (packet_buffer->head + 1) % packet_buffer->size;
+		++packet_buffer->available;
 
 		return true;
 	}
@@ -223,44 +236,25 @@ bool socket_create(Socket* sock)
 	}
 
 	sock->send_buffer = {};
-	sock->receive_buffer = {};
+	sock->recv_buffer = {};
 
 	return true;
 }
 
 void socket_close(Socket* sock)
 {
-	while (sock->send_buffer.head < sock->send_buffer.tail)
+	while (sock->send_buffer.available < sock->send_buffer.size)
 	{
-		uint32 head = sock->send_buffer.head % c_packet_buffer_size;
 		Internal::socket_send(&sock->sock, 
-			sock->send_buffer.packets[head],
-			sock->send_buffer.packet_sizes[head],
-			&sock->send_buffer.endpoints[head]);
-		++sock->send_buffer.head;
+			&sock->send_buffer.packets[sock->send_buffer.head * sock->send_buffer.max_packet_size],
+			sock->send_buffer.packet_sizes[sock->send_buffer.head],
+			&sock->send_buffer.endpoints[sock->send_buffer.head]);
+
+		sock->send_buffer.head = (sock->send_buffer.head + 1) % sock->send_buffer.size;
+		++sock->send_buffer.available;
 	}
 
 	Internal::socket_close(&sock->sock);
-}
-
-void socket_update(Socket* sock, uint8* buffer, uint32 buffer_size)
-{
-	// todo(jbr) fake lag socket should probably have its own internal buffer for this rather than
-	// stealing the one passed in to send/receive by caller
-	uint32 packet_size;
-	IP_Endpoint endpoint;
-	while (packet_buffer_pop(&sock->send_buffer, buffer, &packet_size, &endpoint))
-	{
-		bool success = Internal::socket_send(&sock->sock, buffer, packet_size, &endpoint);
-		assert(success);
-	}
-
-	// todo(jbr) don't call receive if we haven't sent anything yet
-	while (Internal::socket_receive(&sock->sock, buffer, buffer_size, &packet_size, &endpoint))
-	{
-		bool success = packet_buffer_push(&sock->receive_buffer, buffer, packet_size, &endpoint, sock->fake_lag_s);
-		assert(success);
-	}
 }
 
 bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint)
@@ -268,21 +262,51 @@ bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* e
 	bool success = packet_buffer_push(&sock->send_buffer, packet, packet_size, endpoint, sock->fake_lag_s);
 	assert(success);
 
-	socket_update(sock, packet, 1024); // todo(jbr) :(
-
 	return true;
 }
 
 bool socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out_packet_size, IP_Endpoint* out_from)
 {
-	socket_update(sock, buffer, buffer_size);
+	// when the calling code is checking for received packets each tick, 
+	// use this to do a quick update of any packets that need sending
+	uint32 packet_size;
+	IP_Endpoint endpoint;
+	uint8* packet;
+	while (packet_buffer_pop(&sock->send_buffer, &packet, &packet_size, &endpoint))
+	{
+		bool success = Internal::socket_send(&sock->sock, packet, packet_size, &endpoint);
+		assert(success);
+		sock->has_sent_at_least_one_packet = 1;
+	}
 
-	return packet_buffer_pop(&sock->receive_buffer, buffer, out_packet_size, out_from);
+	if (!sock->has_sent_at_least_one_packet)
+	{
+		return false;
+	}
+
+	while (Internal::socket_receive(&sock->sock, buffer, buffer_size, &packet_size, &endpoint))
+	{
+		bool success = packet_buffer_push(&sock->recv_buffer, buffer, packet_size, &endpoint, sock->fake_lag_s);
+		assert(success);
+	}
+
+	if (packet_buffer_pop(&sock->recv_buffer, &packet, out_packet_size, out_from))
+	{
+		memcpy(buffer, packet, *out_packet_size);
+		return true;
+	}
+	return false;
 }
 
-void socket_set_fake_lag_s(Socket* sock, float32 fake_lag_s)
+void socket_set_fake_lag_s(	Socket* sock, 
+							float32 fake_lag_s, 
+							uint32 max_packets_in_per_sec, 
+							uint32 max_packets_out_per_sec, 
+							uint32 max_packet_size)
 {
 	sock->fake_lag_s = fake_lag_s;
+	packet_buffer_create(&sock->send_buffer, (uint32)((max_packets_out_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
+	packet_buffer_create(&sock->recv_buffer, (uint32)((max_packets_in_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
 }
 
 #endif // #ifdef FAKE_LAG
