@@ -40,6 +40,20 @@ constexpr float32 	c_max_speed = 50.0f;
 
 
 
+struct Circular_Index
+{
+	uint32 head;
+	uint32 tail;
+	uint32 available;
+	uint32 size;
+};
+void circular_index_create(Circular_Index* index, uint32 size);
+bool32 circular_index_is_full(Circular_Index* index);
+bool32 circular_index_is_empty(Circular_Index* index);
+void circular_index_push(Circular_Index* index);
+void circular_index_pop(Circular_Index* index);
+
+
 struct Timer
 {
 	LARGE_INTEGER start;
@@ -48,7 +62,6 @@ Timer	timer_create();
 void	timer_restart(Timer* timer);
 float32 timer_get_s(Timer* timer);
 void	timer_wait_until(Timer* timer, float32 wait_time_s);
-
 
 
 struct Memory_Allocator
@@ -61,7 +74,6 @@ void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 
 uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
 uint8* alloc_permanent(uint64 size);
 uint8* alloc_temp(uint64 size);
-
 
 
 struct Globals

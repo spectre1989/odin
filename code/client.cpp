@@ -193,9 +193,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
 	Player_State* prediction_history_state = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_predicted_ticks);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_predicted_ticks);
-	uint32 prediction_history_head = 0;
-	uint32 prediction_history_tail = 0;
-	uint32 prediction_history_head_tick_number = 0;
+	Circular_Index prediction_history_index;
+	circular_index_create(&prediction_history_index, c_max_predicted_ticks);
 	Player_Visual_State* remote_players = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
 	uint32 num_players = 0;
 	uint32 slot = (uint32)-1;

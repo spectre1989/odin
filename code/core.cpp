@@ -2,6 +2,38 @@
 
 
 
+void circular_index_create(Circular_Index* index, uint32 size)
+{
+	index->head = 0;
+	index->tail = 0;
+	index->size = size;
+	index->available = size;
+}
+
+bool32 circular_index_is_full(Circular_Index* index)
+{
+	return !index->available;
+}
+
+bool32 circular_index_is_empty(Circular_Index* index)
+{
+	return index->available == index->size;
+}
+
+void circular_index_push(Circular_Index* index)
+{
+	assert(!circular_index_is_full(index));
+
+	index->tail = (index->tail + 1) % index->size;
+}
+
+void circular_index_pop(Circular_Index* index)
+{
+	assert(!circular_index_is_empty(index));
+
+	index->head = (index->head + 1) % index->size;
+}
+
 void timer_restart(Timer* timer)
 {
 	QueryPerformanceCounter(&timer->start);
