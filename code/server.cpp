@@ -54,9 +54,10 @@ void main()
 	float32* time_since_heard_from_clients = (float32*)alloc_permanent(sizeof(float32) * c_max_clients);
 	Player_State* client_objects = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_clients);
 	Player_Input* client_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
-	Player_Input** client_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_ticks_per_second);
-	uint32** client_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_ticks_per_second);
-	for (uint32 i = 0; i < c_ticks_per_second; ++i)
+	constexpr uint32 c_client_input_buffer_capacity = c_ticks_per_second;
+	Player_Input** client_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_client_input_buffer_capacity);
+	uint32** client_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_client_input_buffer_capacity);
+	for (uint32 i = 0; i < c_client_input_buffer_capacity; ++i)
 	{
 		client_input_buffer_inputs[i] = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
 		client_input_buffer_test[i] = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
@@ -163,10 +164,9 @@ void main()
 						if (input_tick_number >= tick_number)
 						{
 							uint32 offset = input_tick_number - tick_number;
-							if (offset < c_ticks_per_second)
+							if (offset < c_client_input_buffer_capacity)
 							{
-								// todo(jbr) is a generalised circular buffer needed?
-								uint32 write_pos = (client_input_buffer_head + offset) % c_ticks_per_second;
+								uint32 write_pos = (client_input_buffer_head + offset) % c_client_input_buffer_capacity;
 								client_input_buffer_inputs[write_pos][slot] = input;
 								client_input_buffer_test[write_pos][slot] = 1;
 							}
@@ -207,7 +207,7 @@ void main()
 
 			client_input_buffer_test[client_input_buffer_head][i] = 0; // clear for next time
 		}
-		client_input_buffer_head = (client_input_buffer_head + 1) % c_ticks_per_second;
+		client_input_buffer_head = (client_input_buffer_head + 1) % c_client_input_buffer_capacity;
 
 		// update players
 		for (uint32 i = 0; i < c_max_clients; ++i)

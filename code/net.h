@@ -39,7 +39,7 @@ namespace Internal
 
 struct Packet_Buffer
 {
-	uint32 head;
+	uint32 head; // todo(jbr) use Circular_Index
 	uint32 tail;
 	uint32 size;
 	uint32 available;

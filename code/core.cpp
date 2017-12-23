@@ -24,19 +24,14 @@ void circular_index_push(Circular_Index* index)
 {
 	assert(!circular_index_is_full(index));
 
-	index->tail = circular_index_next(index, index->tail);
+	index->tail = (index->tail + 1) % index->capacity;
 }
 
 void circular_index_pop(Circular_Index* index)
 {
 	assert(!circular_index_is_empty(index));
 
-	index->head = circular_index_next(index, index->head);
-}
-
-uint32 circular_index_next(Circular_Index* index, uint32 i)
-{
-	return (i + 1) % index->capacity;
+	index->head = (index->head + 1) % index->capacity;
 }
 
 void timer_restart(Timer* timer)
