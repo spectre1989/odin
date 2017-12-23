@@ -193,8 +193,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	constexpr uint32 c_max_predicted_ticks = c_ticks_per_second * 2;
 	Player_State* prediction_history_state = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_predicted_ticks);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_predicted_ticks);
-	Circular_Index prediction_history_index;
-	circular_index_create(&prediction_history_index, c_max_predicted_ticks);
+	Circular_Index* prediction_history_index = (Circular_Index*)alloc_permanent(sizeof(Circular_Index));
+	circular_index_create(prediction_history_index, c_max_predicted_ticks);
 	Player_Visual_State* remote_players = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
 	uint32 num_players = 0;
 	uint32 slot = (uint32)-1;
@@ -278,27 +278,23 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
 						*local_player = received_local_player_state;
 						tick_number = target_tick_number;
-						prediction_history_head = 0;
-						prediction_history_tail = 0;
-						prediction_history_head_tick_number = tick_number;
 					}
 					else
 					{
-						uint32 prediction_history_size = prediction_history_tail > prediction_history_head ? prediction_history_tail - prediction_history_head : c_max_predicted_ticks - (prediction_history_head - prediction_history_tail);
-						while (prediction_history_size && 
-							prediction_history_head_tick_number < received_tick_number)
+						uint32 oldest_predicted_tick_number = tick_number - prediction_history_index->size;
+						while (prediction_history_index->size && 
+							oldest_predicted_tick_number < received_tick_number)
 						{
 							// discard this one, not needed
-							++prediction_history_head_tick_number;
-							prediction_history_head = (prediction_history_head + 1) % c_max_predicted_ticks;
-							--prediction_history_size;
+							++oldest_predicted_tick_number;
+							circular_index_pop(prediction_history_index);
 						}
 
-						if (prediction_history_size &&
-							prediction_history_head_tick_number == received_tick_number)
+						if (prediction_history_index->size &&
+							oldest_predicted_tick_number == received_tick_number)
 						{
-							float32 dx = prediction_history_state[prediction_history_head].x - received_local_player_state.x;
-							float32 dy = prediction_history_state[prediction_history_head].y - received_local_player_state.y;
+							float32 dx = prediction_history_state[prediction_history_index->head].x - received_local_player_state.x;
+							float32 dy = prediction_history_state[prediction_history_index->head].y - received_local_player_state.y;
 							constexpr float32 c_max_error = 0.01f;
 							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 							float32 error_sq = (dx * dx) + (dy * dy);
@@ -307,15 +303,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
 
 								*local_player = received_local_player_state;
-								uint32 i = prediction_history_head;
+								uint32 i = prediction_history_index->head;
 								while (true)
 								{
 									prediction_history_state[i] = *local_player;
 
 									tick_player(local_player, &prediction_history_input[i]);
 
-									i = (i + 1) % c_max_predicted_ticks;
-									if (i == prediction_history_tail)
+									i = circular_index_next(prediction_history_index, i);
+									if (i == prediction_history_index->tail)
 									{
 										break;
 									}
@@ -340,10 +336,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
-				prediction_history_state[prediction_history_tail] = *local_player;
-				prediction_history_input[prediction_history_tail] = client_globals->player_input;
-				// todo(jbr) detect and handle buffer being full
-				prediction_history_tail = (prediction_history_tail + 1) % c_max_predicted_ticks; // todo(jbr) this will break if buffer is ever full
+				if (circular_index_is_full(prediction_history_index))
+				{
+					circular_index_pop(prediction_history_index);
+				}
+				prediction_history_state[prediction_history_index->tail] = *local_player;
+				prediction_history_input[prediction_history_index->tail] = client_globals->player_input;
+				circular_index_push(prediction_history_index);
 
 				tick_player(local_player, &client_globals->player_input);
 				++tick_number;

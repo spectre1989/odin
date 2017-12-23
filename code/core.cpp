@@ -2,36 +2,41 @@
 
 
 
-void circular_index_create(Circular_Index* index, uint32 size)
+void circular_index_create(Circular_Index* index, uint32 capacity)
 {
 	index->head = 0;
 	index->tail = 0;
-	index->size = size;
-	index->available = size;
+	index->size = 0;
+	index->capacity = capacity;
 }
 
 bool32 circular_index_is_full(Circular_Index* index)
 {
-	return !index->available;
+	return index->size == index->capacity;
 }
 
 bool32 circular_index_is_empty(Circular_Index* index)
 {
-	return index->available == index->size;
+	return !index->size;
 }
 
 void circular_index_push(Circular_Index* index)
 {
 	assert(!circular_index_is_full(index));
 
-	index->tail = (index->tail + 1) % index->size;
+	index->tail = circular_index_next(index, index->tail);
 }
 
 void circular_index_pop(Circular_Index* index)
 {
 	assert(!circular_index_is_empty(index));
 
-	index->head = (index->head + 1) % index->size;
+	index->head = circular_index_next(index, index->head);
+}
+
+uint32 circular_index_next(Circular_Index* index, uint32 i)
+{
+	return (i + 1) % index->capacity;
 }
 
 void timer_restart(Timer* timer)
