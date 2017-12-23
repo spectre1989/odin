@@ -72,8 +72,7 @@ void main()
 	Timer tick_timer = timer_create();
 
 
-	bool32 is_running = 1;
-	while (is_running)
+	while (true)
 	{
 		timer_restart(&tick_timer);
 

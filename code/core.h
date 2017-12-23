@@ -81,7 +81,7 @@ struct Globals
 	Memory_Allocator temp_allocator;
 	Log_Function* log_function;
 	LARGE_INTEGER clock_frequency;
-	bool sleep_granularity_was_set;
+	bool32 sleep_granularity_was_set;
 };
 extern Globals* globals;
 void globals_init(Log_Function* log_func);
