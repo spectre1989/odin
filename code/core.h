@@ -49,7 +49,6 @@ struct Circular_Index
 };
 void circular_index_create(Circular_Index* index, uint32 capacity);
 bool32 circular_index_is_full(Circular_Index* index);
-bool32 circular_index_is_empty(Circular_Index* index);
 void circular_index_push(Circular_Index* index);
 void circular_index_pop(Circular_Index* index);
 

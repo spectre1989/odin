@@ -15,11 +15,6 @@ bool32 circular_index_is_full(Circular_Index* index)
 	return index->size == index->capacity;
 }
 
-bool32 circular_index_is_empty(Circular_Index* index)
-{
-	return !index->size;
-}
-
 void circular_index_push(Circular_Index* index)
 {
 	assert(!circular_index_is_full(index));
@@ -29,7 +24,7 @@ void circular_index_push(Circular_Index* index)
 
 void circular_index_pop(Circular_Index* index)
 {
-	assert(!circular_index_is_empty(index));
+	assert(index->size);
 
 	index->head = (index->head + 1) % index->capacity;
 }

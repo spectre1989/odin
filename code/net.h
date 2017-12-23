@@ -7,7 +7,7 @@ namespace Net
 {
 
 
-bool init();
+bool32 init();
 
 
 struct IP_Endpoint
@@ -16,7 +16,7 @@ struct IP_Endpoint
 	uint16 port;
 };
 IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port);
-bool		ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b);
+bool32		ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b);
 SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint);
 void		ip_endpoint_to_str(char* out_str, size_t out_str_size, IP_Endpoint* ip_endpoint);
 
@@ -39,10 +39,7 @@ namespace Internal
 
 struct Packet_Buffer
 {
-	uint32 head; // todo(jbr) use Circular_Index
-	uint32 tail;
-	uint32 size;
-	uint32 available;
+	Circular_Index index;
 	uint32 max_packet_size;
 	uint8* packets;
 	uint32* packet_sizes;
@@ -65,11 +62,11 @@ struct Socket
 
 #endif // #ifdef FAKE_LAG
 
-bool socket_create(Socket* out_socket);
+bool32 socket_create(Socket* out_socket);
 void socket_close(Socket* sock);
-bool socket_bind(Socket* sock, IP_Endpoint* local_endpoint);
-bool socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint);
-bool socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out_packet_size, IP_Endpoint* out_from);
+bool32 socket_bind(Socket* sock, IP_Endpoint* local_endpoint);
+bool32 socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint);
+bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out_packet_size, IP_Endpoint* out_from);
 void socket_set_fake_lag_s(	Socket* sock, 
 							float32 fake_lag_s, 
 							uint32 max_packets_in_per_sec, 
