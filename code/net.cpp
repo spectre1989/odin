@@ -61,12 +61,38 @@ namespace Internal
 {
 #endif // #ifdef FAKE_LAG
 
+static bool32 set_sock_opt(SOCKET sock, int opt, int val)
+{
+	int len = sizeof(int);
+	if (setsockopt(sock, SOL_SOCKET, opt, (char*)&val, len) == SOCKET_ERROR)
+	{
+		return false;
+	}
+
+	int actual;
+	if (getsockopt(sock, SOL_SOCKET, opt, (char*)&actual, &len) == SOCKET_ERROR)
+	{
+		return false;
+	}
+
+	return val == actual;
+}
+
 bool32 socket_create(Socket* out_socket)
 {
 	int address_family = AF_INET;
 	int type = SOCK_DGRAM;
 	int protocol = IPPROTO_UDP;
-	SOCKET sock = socket(address_family, type, protocol); // todo(jbr) make sure internal buffer is big enough?
+	SOCKET sock = socket(address_family, type, protocol);
+
+	if (!set_sock_opt(sock, SO_RCVBUF, (int)megabytes(1)))
+	{
+		log("failed to set rcvbuf size");
+	}
+	if (!set_sock_opt(sock, SO_SNDBUF, (int)megabytes(1)))
+	{
+		log("failed to set sndbuf size");
+	}
 
 	if (sock == INVALID_SOCKET)
 	{
