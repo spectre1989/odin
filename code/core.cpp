@@ -20,6 +20,7 @@ void circular_index_push(Circular_Index* index)
 	assert(!circular_index_is_full(index));
 
 	index->tail = (index->tail + 1) % index->capacity;
+	++index->size;
 }
 
 void circular_index_pop(Circular_Index* index)
@@ -27,6 +28,7 @@ void circular_index_pop(Circular_Index* index)
 	assert(index->size);
 
 	index->head = (index->head + 1) % index->capacity;
+	--index->size;
 }
 
 void timer_restart(Timer* timer)

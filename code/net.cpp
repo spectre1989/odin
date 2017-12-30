@@ -309,7 +309,8 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 	uint32 packet_size;
 	IP_Endpoint endpoint;
 	uint8* packet;
-	while (packet_buffer_pop(&sock->send_buffer, &packet, &packet_size, &endpoint))
+	while (sock->send_buffer.index.size &&
+			packet_buffer_pop(&sock->send_buffer, &packet, &packet_size, &endpoint))
 	{
 		bool32 success = Internal::socket_send(&sock->sock, packet, packet_size, &endpoint);
 		assert(success);
@@ -332,7 +333,8 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 		packet_buffer_push(&sock->recv_buffer, buffer, packet_size, &endpoint, sock->fake_lag_s);
 	}
 
-	if (packet_buffer_pop(&sock->recv_buffer, &packet, out_packet_size, out_from))
+	if (sock->recv_buffer.index.size &&
+		packet_buffer_pop(&sock->recv_buffer, &packet, out_packet_size, out_from))
 	{
 		memcpy(buffer, packet, *out_packet_size);
 		return true;
