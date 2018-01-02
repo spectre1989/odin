@@ -43,7 +43,6 @@ constexpr float32 	c_max_speed = 50.0f;
 struct Circular_Index
 {
 	uint32 head;
-	uint32 tail;
 	uint32 size;
 	uint32 capacity;
 };
@@ -51,6 +50,8 @@ void circular_index_create(Circular_Index* index, uint32 capacity);
 bool32 circular_index_is_full(Circular_Index* index);
 void circular_index_push(Circular_Index* index);
 void circular_index_pop(Circular_Index* index);
+uint32 circular_index_tail(Circular_Index* index);
+uint32 circular_index_iterator(Circular_Index* index, uint32 offset);
 
 
 struct Timer

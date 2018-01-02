@@ -215,11 +215,12 @@ static void packet_buffer_push(Packet_Buffer* packet_buffer, uint8* packet, uint
 	LARGE_INTEGER then;
 	then.QuadPart = now.QuadPart + (LONGLONG)(globals->clock_frequency.QuadPart * fake_lag_s);
 
-	packet_buffer->times[packet_buffer->index.tail] = then;
-	packet_buffer->packet_sizes[packet_buffer->index.tail] = packet_size;
-	packet_buffer->endpoints[packet_buffer->index.tail] = *endpoint;
+	uint32 tail = circular_index_tail(&packet_buffer->index);
+	packet_buffer->times[tail] = then;
+	packet_buffer->packet_sizes[tail] = packet_size;
+	packet_buffer->endpoints[tail] = *endpoint;
 
-	uint8* dst_packet = &packet_buffer->packets[packet_buffer->index.tail * packet_buffer->max_packet_size];
+	uint8* dst_packet = &packet_buffer->packets[tail * packet_buffer->max_packet_size];
 	memcpy(dst_packet, packet, packet_size);
 
 	circular_index_push(&packet_buffer->index);

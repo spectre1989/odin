@@ -303,18 +303,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
 
 								*local_player = received_local_player_state;
-								uint32 i = prediction_history_index->head;
-								while (true)
+								for (uint32 i = 0; i < prediction_history_index->size; ++i)
 								{
-									prediction_history_state[i] = *local_player;
+									uint32 circular_i = circular_index_iterator(prediction_history_index, i);
+									
+									prediction_history_state[circular_i] = *local_player;
 
-									tick_player(local_player, &prediction_history_input[i]);
-
-									i = (i + 1) % prediction_history_index->capacity;
-									if (i == prediction_history_index->tail)
-									{
-										break;
-									}
+									tick_player(local_player, &prediction_history_input[circular_i]);
 								}
 							}
 						}
@@ -340,8 +335,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				{
 					circular_index_pop(prediction_history_index);
 				}
-				prediction_history_state[prediction_history_index->tail] = *local_player;
-				prediction_history_input[prediction_history_index->tail] = client_globals->player_input;
+				uint32 tail = circular_index_tail(prediction_history_index);
+				prediction_history_state[tail] = *local_player;
+				prediction_history_input[tail] = client_globals->player_input;
 				circular_index_push(prediction_history_index);
 
 				tick_player(local_player, &client_globals->player_input);
