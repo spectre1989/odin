@@ -103,21 +103,6 @@ uint8* alloc_temp(uint64 size)
 	return memory_allocator_alloc(&globals->temp_allocator, size);
 }
 
-static constexpr uint64 kilobytes(uint32 kb)
-{
-	return kb * 1024;
-}
-
-static constexpr uint64 megabytes(uint32 mb)
-{
-	return kilobytes(mb * 1024);
-}
-
-static constexpr uint64 gigabytes(uint32 gb)
-{
-	return megabytes(gb * 1024);
-}
-
 void globals_init(Log_Function* log_func)
 {
 	constexpr uint64 c_permanent_memory_size = megabytes(64);

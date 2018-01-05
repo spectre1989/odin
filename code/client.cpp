@@ -239,7 +239,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		Net::IP_Endpoint from;
 		while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
-			switch (socket_buffer[0])
+			switch ((Net::Server_Message)socket_buffer[0])
 			{
 				case Net::Server_Message::Join_Result:
 				{

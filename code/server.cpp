@@ -21,19 +21,19 @@ static void log_func(const char* format, va_list args)
 	vprintf(format, args);
 }
 
-void main()
+int main()
 {
 	globals_init(&log_func);
 
 	if (!Net::init())
 	{
-		return;
+		return 1;
 	}
 
 	Net::Socket sock;
 	if (!Net::socket_create(&sock))
 	{
-		return;
+		return 1;
 	}
 
 	Net::IP_Endpoint local_endpoint = {};
@@ -41,7 +41,7 @@ void main()
 	local_endpoint.port = c_port;
 	if (!Net::socket_bind(&sock, &local_endpoint))
 	{
-		return;
+		return 1;
 	}
 
 	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
@@ -81,7 +81,7 @@ void main()
 		Net::IP_Endpoint from;
 		while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
 		{
-			switch (socket_buffer[0])
+			switch ((Net::Client_Message)socket_buffer[0])
 			{
 				case Net::Client_Message::Join:
 				{
@@ -247,4 +247,6 @@ void main()
 	}
 
 	Net::socket_close(&sock);
+
+	return 0;
 }

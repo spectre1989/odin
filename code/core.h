@@ -32,6 +32,21 @@ constexpr float32 	c_max_speed = 50.0f;
 
 
 
+constexpr uint64 kilobytes(uint32 kb)
+{
+	return kb * 1024;
+}
+constexpr uint64 megabytes(uint32 mb)
+{
+	return kilobytes(mb * 1024);
+}
+constexpr uint64 gigabytes(uint32 gb)
+{
+	return megabytes(gb * 1024);
+}
+
+
+
 #ifndef RELEASE
 #define assert(x) if (!(x)) { int* p = 0; *p = 0; }
 #else
