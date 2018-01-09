@@ -1,5 +1,5 @@
 # Odin
-## A Multiplayer Game Built From Scratch
+## A Multiplayer FPS Built From Scratch
 
 ### Requirements
 Vulkan SDK, and Visual Studio. Note: If you have issues building then the problem will likely be in shell.bat.
