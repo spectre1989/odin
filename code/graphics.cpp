@@ -66,11 +66,11 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-void init(	State* out_state,
+void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			uint32 num_vertices, 
-			uint16* indices, uint32 num_indices)
+			float32 fov_y, float32 near_plane, float32 far_plane, 
+			uint32 num_vertices, uint16* indices, uint32 num_indices);
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -654,6 +654,24 @@ void init(	State* out_state,
 
 	result = vkCreateSemaphore(out_state->device, &semaphore_create_info, 0, &out_state->render_finished_semaphore);
 	assert(result == VK_SUCCESS);
+
+	// create projection matrix
+	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
+	// 1/tan(fovx/2) 	0	0				0
+	// 0				0	-1/tan(fovy/2)	0
+	// 0				-c2	0				c1
+	// 0				-1	0				0
+	// this is stored column major
+	// NDC Z = c1/w + c2
+	// c1 = (near*far)/(near-far)
+	// c2 = far/(far-near)
+	float32 aspect_ratio = width / (float32)height;
+	float32 fov_y = aspect_ratio * tan(fov_y * 0.5f) * 2.0f;
+	out_state->projection_matrix[0] = 1.0f / tan(fov_x * 0.5f);
+	out_state->projection_matrix[6] = -far_plane / (far_plane - near_plane);
+	out_state->projection_matrix[7] = -1.0f;
+	out_state->projection_matrix[9] = -1.0f / tan(fov_y * 0.5f);
+	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);
 }
 
 void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state)

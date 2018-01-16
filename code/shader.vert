@@ -11,8 +11,13 @@ out gl_PerVertex
     vec4 gl_Position;
 };
 
+layout(binding = 0) uniform UBO
+{
+	mat4 model_view_proj;
+} ubo;
+
 void main() 
 {
-    gl_Position = vec4(in_position, 0.0, 1.0);
+    gl_Position = ubo.model_view_proj * vec4(in_position.x, -5.0, in_position.y, 1.0);
     out_colour = in_colour;
 }
