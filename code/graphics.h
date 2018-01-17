@@ -30,6 +30,8 @@ struct State
 	VkSemaphore render_finished_semaphore;
 	VkCommandBuffer* command_buffers;
 	float projection_matrix[16];
+	VkBuffer projection_matrix_buffer;
+	VkDeviceMemory projection_matrix_buffer_memory;
 };
 
 void init(	State* out_state, 

@@ -70,7 +70,7 @@ void init(	State* out_state,
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
 			float32 fov_y, float32 near_plane, float32 far_plane, 
-			uint32 num_vertices, uint16* indices, uint32 num_indices);
+			uint32 num_vertices, uint16* indices, uint32 num_indices)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -493,8 +493,26 @@ void init(	State* out_state,
 	colour_blend_state_create_info.attachmentCount = 1;
 	colour_blend_state_create_info.pAttachments = &colour_blend_attachment;
 
+	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
+    descriptor_set_layout_binding.binding = 0;
+    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_set_layout_binding.descriptorCount = 1;
+    descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+	descriptor_set_layout_binding.pImmutableSamplers = 0;
+
+	VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
+	descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	descriptor_set_layout_create_info.bindingCount = 1;
+	descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
+
+	VkDescriptorSetLayout descriptor_set_layout;
+	result = vkCreateDescriptorSetLayout(out_state->device, &descriptor_set_layout_create_info, 0, &descriptor_set_layout);
+	assert(result == VK_SUCCESS);
+
 	VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
 	pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_create_info.setLayoutCount = 1;
+	pipeline_layout_create_info.pSetLayouts = &descriptor_set_layout;
 
 	VkPipelineLayout pipeline_layout;
 	result = vkCreatePipelineLayout(out_state->device, &pipeline_layout_create_info, 0, &pipeline_layout);
@@ -595,6 +613,47 @@ void init(	State* out_state,
 
 	copy_to_buffer(out_state->device, index_buffer_memory, (void*)indices, c_index_buffer_size);
 
+	// create projection matrix
+	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
+	// 1/tan(fovx/2) 	0	0				0
+	// 0				0	-1/tan(fovy/2)	0
+	// 0				-c2	0				c1
+	// 0				-1	0				0
+	// this is stored column major
+	// NDC Z = c1/w + c2
+	// c1 = (near*far)/(near-far)
+	// c2 = far/(far-near)
+	float32 aspect_ratio = window_width / (float32)window_height;
+	float32 fov_x = aspect_ratio * tanf(fov_y * 0.5f) * 2.0f;
+	out_state->projection_matrix[0] = 1.0f / tanf(fov_x * 0.5f);
+	out_state->projection_matrix[6] = -far_plane / (far_plane - near_plane);
+	out_state->projection_matrix[7] = -1.0f;
+	out_state->projection_matrix[9] = -1.0f / tanf(fov_y * 0.5f);
+	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);
+	const uint32 c_projection_matrix_data_size = sizeof(float32) * 16;
+
+	buffer_create_info = {};
+	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_create_info.pNext = NULL;
+	buffer_create_info.flags = 0;
+    buffer_create_info.size = c_projection_matrix_data_size;
+    buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    buffer_create_info.queueFamilyIndexCount = 0;
+    buffer_create_info.pQueueFamilyIndices = 0;
+	
+	create_buffer(	physical_device, 
+					out_state->device, 
+					&buffer_create_info, 
+					&out_state->projection_matrix_buffer, 
+					&out_state->projection_matrix_buffer_memory);
+
+	copy_to_buffer(	out_state->device, 
+					out_state->projection_matrix_buffer_memory, 
+					(void*)out_state->projection_matrix, 
+					c_projection_matrix_data_size);
+
+
 	// Create command buffers
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -654,24 +713,6 @@ void init(	State* out_state,
 
 	result = vkCreateSemaphore(out_state->device, &semaphore_create_info, 0, &out_state->render_finished_semaphore);
 	assert(result == VK_SUCCESS);
-
-	// create projection matrix
-	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
-	// 1/tan(fovx/2) 	0	0				0
-	// 0				0	-1/tan(fovy/2)	0
-	// 0				-c2	0				c1
-	// 0				-1	0				0
-	// this is stored column major
-	// NDC Z = c1/w + c2
-	// c1 = (near*far)/(near-far)
-	// c2 = far/(far-near)
-	float32 aspect_ratio = width / (float32)height;
-	float32 fov_y = aspect_ratio * tan(fov_y * 0.5f) * 2.0f;
-	out_state->projection_matrix[0] = 1.0f / tan(fov_x * 0.5f);
-	out_state->projection_matrix[6] = -far_plane / (far_plane - near_plane);
-	out_state->projection_matrix[7] = -1.0f;
-	out_state->projection_matrix[9] = -1.0f / tan(fov_y * 0.5f);
-	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);
 }
 
 void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state)
