@@ -477,7 +477,7 @@ void init(	State* out_state,
  	rasteriser_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
  	rasteriser_create_info.polygonMode = VK_POLYGON_MODE_FILL;
  	rasteriser_create_info.lineWidth = 1.0f;
- 	rasteriser_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+ 	rasteriser_create_info.cullMode = VK_CULL_MODE_NONE; // todo(jbr) enable culling when uniforms are working
  	rasteriser_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
 	VkPipelineMultisampleStateCreateInfo multisampling_create_info = {};
@@ -653,6 +653,59 @@ void init(	State* out_state,
 					(void*)out_state->projection_matrix, 
 					c_projection_matrix_data_size);
 
+	// Create descriptor set to store the projection matrix
+	VkDescriptorPoolSize descriptor_pool_size = {};
+	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptor_pool_size.descriptorCount = 1;
+
+	VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
+	descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	descriptor_pool_create_info.flags = 0;
+	descriptor_pool_create_info.maxSets = 1;
+	descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
+	descriptor_pool_create_info.poolSizeCount = 1;
+
+	VkDescriptorPool descriptor_pool;
+	result = vkCreateDescriptorPool(out_state->device, &descriptor_pool_create_info, 0, &descriptor_pool);
+	assert(result == VK_SUCCESS);
+
+	VkDescriptorSetAllocateInfo descriptor_set_alloc_info = {};
+	descriptor_set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	descriptor_set_alloc_info.descriptorPool = descriptor_pool;
+	descriptor_set_alloc_info.descriptorSetCount = 1;
+	descriptor_set_alloc_info.pSetLayouts = &descriptor_set_layout;
+
+	VkDescriptorSet descriptor_set;
+	result = vkAllocateDescriptorSets(out_state->device,
+									&descriptor_set_alloc_info,
+									&descriptor_set);
+	assert(result == VK_SUCCESS);
+
+	VkDescriptorBufferInfo buffer_info = {};
+	buffer_info.buffer = out_state->projection_matrix_buffer;
+	buffer_info.offset = 0;
+	buffer_info.range = VK_WHOLE_SIZE;
+
+	VkWriteDescriptorSet write_descriptor_set = {};
+	write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	write_descriptor_set.dstSet = descriptor_set;
+	write_descriptor_set.dstBinding = 0;
+	write_descriptor_set.dstArrayElement = 0;
+	write_descriptor_set.descriptorCount = 1;
+	write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	write_descriptor_set.pImageInfo = 0;
+	write_descriptor_set.pBufferInfo = &buffer_info;
+	write_descriptor_set.pTexelBufferView = 0;
+
+	uint32 descriptor_write_count = 1;
+	const VkWriteDescriptorSet* descriptor_writes = &write_descriptor_set;
+	uint32 descriptor_copy_count = 0;
+	const VkCopyDescriptorSet* descriptor_copies = 0;
+	vkUpdateDescriptorSets(	out_state->device,
+							descriptor_write_count,
+							descriptor_writes,
+							descriptor_copy_count,
+							descriptor_copies);
 
 	// Create command buffers
 	VkCommandPoolCreateInfo command_pool_create_info = {};
@@ -660,7 +713,8 @@ void init(	State* out_state,
 	command_pool_create_info.queueFamilyIndex = graphics_queue_family_index;
 
 	VkCommandPool command_pool;
-	vkCreateCommandPool(out_state->device, &command_pool_create_info, 0, &command_pool);
+	result = vkCreateCommandPool(out_state->device, &command_pool_create_info, 0, &command_pool);
+	assert(result == VK_SUCCESS);
 
 	out_state->command_buffers = (VkCommandBuffer*)alloc_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
 	VkCommandBufferAllocateInfo command_buffer_alloc_info = {};
@@ -692,6 +746,20 @@ void init(	State* out_state,
 		vkCmdBeginRenderPass(out_state->command_buffers[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdBindPipeline(out_state->command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+
+		VkPipelineBindPoint pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		uint32 first_set = 0;
+		uint32 descriptor_set_count = 1;
+		uint32 dynamic_offset_count = 0;
+		const uint32* dynamic_offsets = 0;
+		vkCmdBindDescriptorSets(out_state->command_buffers[i],
+								pipeline_bind_point,
+								pipeline_layout,
+								first_set,
+								descriptor_set_count,
+								&descriptor_set,
+								dynamic_offset_count,
+								dynamic_offsets);
 
 		VkDeviceSize offset = 0;
 		vkCmdBindVertexBuffers(out_state->command_buffers[i], 0, 1, &vertex_buffer, &offset);
