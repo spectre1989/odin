@@ -626,7 +626,7 @@ void init(	State* out_state,
 	float32 aspect_ratio = window_width / (float32)window_height;
 	float32 fov_x = aspect_ratio * tanf(fov_y * 0.5f) * 2.0f;
 	out_state->projection_matrix[0] = 1.0f / tanf(fov_x * 0.5f);
-	out_state->projection_matrix[6] = -far_plane / (far_plane - near_plane);
+	out_state->projection_matrix[6] = -(far_plane / (far_plane - near_plane));
 	out_state->projection_matrix[7] = -1.0f;
 	out_state->projection_matrix[9] = -1.0f / tanf(fov_y * 0.5f);
 	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);

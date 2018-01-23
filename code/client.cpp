@@ -148,6 +148,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			vertices[start_verts + j].col_g = rgb[1];
 			vertices[start_verts + j].col_b = rgb[2];
 		}
+		// left = red, right = green
+		// top = green, bottom = nothing
+		vertices[start_verts].col_r = 1.0f; // tl
+		vertices[start_verts].col_g = 0.0f;
+		vertices[start_verts].col_b = 1.0f;
+		vertices[start_verts + 1].col_r = 1.0f; // bl
+		vertices[start_verts + 1].col_g = 0.0f;
+		vertices[start_verts + 1].col_b = 0.0f;
+		vertices[start_verts + 2].col_r = 0.0f; // br
+		vertices[start_verts + 2].col_g = 1.0f;
+		vertices[start_verts + 2].col_b = 0.0f;
+		vertices[start_verts + 3].col_r = 0.0f; // tr
+		vertices[start_verts + 3].col_g = 1.0f;
+		vertices[start_verts + 3].col_b = 1.0f;
 	}
 
 	constexpr uint32 c_num_indices = 6 * c_max_clients;
@@ -362,19 +376,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		// Draw
 		for (uint32 i = 0; i < num_players; ++i)
 		{
-			constexpr float32 size = 0.05f;
-			float32 x = remote_players[i].x * 0.01f;
-			float32 y = remote_players[i].y * -0.01f;
+			constexpr float32 size = 0.5f;
+			float32 x = remote_players[i].x;
+			float32 y = remote_players[i].y;
 
 			uint32 verts_start = i * 4;
-			vertices[verts_start].pos_x = x - size; // TL (hdc y is +ve down screen)
-			vertices[verts_start].pos_y = y - size;
+			vertices[verts_start].pos_x = x - size; // TL
+			vertices[verts_start].pos_y = y + size;
 			vertices[verts_start + 1].pos_x = x - size; // BL
-			vertices[verts_start + 1].pos_y = y + size;
+			vertices[verts_start + 1].pos_y = y - size;
 			vertices[verts_start + 2].pos_x = x + size; // BR
-			vertices[verts_start + 2].pos_y = y + size;
+			vertices[verts_start + 2].pos_y = y - size;
 			vertices[verts_start + 3].pos_x = x + size; // TR
-			vertices[verts_start + 3].pos_y = y - size;
+			vertices[verts_start + 3].pos_y = y + size;
 		}
 		for (uint32 i = num_players; i < c_max_clients; ++i)
 		{
