@@ -179,7 +179,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 	Graphics::State* graphics_state = (Graphics::State*)alloc_permanent(sizeof(Graphics::State));
-	const float32 c_fov_y = 60.0f;
+	const float32 c_fov_y = 60.0f * c_deg_to_rad;
 	const float32 c_near_plane = 1.0f;
 	const float32 c_far_plane = 10.0f;
 	Graphics::init(graphics_state, window_handle, instance, 

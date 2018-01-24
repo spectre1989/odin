@@ -29,6 +29,8 @@ constexpr float32	c_seconds_per_tick = 1.0f / (float32)c_ticks_per_second;
 constexpr float32 	c_turn_speed = 1.0f;	// how fast player turns
 constexpr float32 	c_acceleration = 20.0f;
 constexpr float32 	c_max_speed = 50.0f;
+constexpr float32	c_pi = 3.14159265359f;
+constexpr float32	c_deg_to_rad = c_pi / 180.0f;
 
 
 

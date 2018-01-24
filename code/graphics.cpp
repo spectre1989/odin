@@ -615,21 +615,25 @@ void init(	State* out_state,
 
 	// create projection matrix
 	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
-	// 1/tan(fovx/2) 	0	0				0
-	// 0				0	-1/tan(fovy/2)	0
-	// 0				-c2	0				c1
-	// 0				-1	0				0
+	// 1/(tan(fovx/2)*aspect)	0	0				0
+	// 0						0	-1/tan(fovy/2)	0
+	// 0						-c2	0				c1
+	// 0						-1	0				0
 	// this is stored column major
 	// NDC Z = c1/w + c2
 	// c1 = (near*far)/(near-far)
 	// c2 = far/(far-near)
 	float32 aspect_ratio = window_width / (float32)window_height;
-	float32 fov_x = aspect_ratio * tanf(fov_y * 0.5f) * 2.0f;
-	out_state->projection_matrix[0] = 1.0f / tanf(fov_x * 0.5f);
+	for (uint32 i = 0; i < 16; ++i)
+	{
+		out_state->projection_matrix[i] = 0.0f;
+	}
+	out_state->projection_matrix[0] = 1.0f / (tanf(fov_y * 0.5f) * aspect_ratio);
 	out_state->projection_matrix[6] = -(far_plane / (far_plane - near_plane));
 	out_state->projection_matrix[7] = -1.0f;
 	out_state->projection_matrix[9] = -1.0f / tanf(fov_y * 0.5f);
 	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);
+
 	const uint32 c_projection_matrix_data_size = sizeof(float32) * 16;
 
 	buffer_create_info = {};
