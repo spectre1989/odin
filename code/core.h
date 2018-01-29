@@ -56,8 +56,15 @@ constexpr uint64 gigabytes(uint32 gb)
 #endif
 
 
+struct Vector3
+{
+	float32 x, y, z;
+};
+Vector3 vector3_create(float32 x, float32 y, float32 z);
 
-struct Matrix4x4
+
+
+struct Matrix_4x4
 {
 	// column major
 	float32 m11, m21, m31, m41,

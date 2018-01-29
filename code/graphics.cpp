@@ -66,6 +66,45 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
+static void create_cube_face(Vertex* vertices, uint32 vertex_offset, 
+	uint16* indices, uint32 index_offset, 
+	Vector3* center,
+	uint32 right, float32 right_size, 
+	uint32 up, float32 up_size,
+	Vector3* colour)
+{
+	float32 half_right = right * 0.5f;
+	float32 half_up = up * 0.5f;
+
+	// top left
+	vertices[vertex_offset].pos = center;
+	vertices[vertex_offset].pos[right] -= half_right;
+	vertices[vertex_offset].pos[up] += half_up;
+	vertices[vertex_offset].colour = colour;
+	// top right
+	vertices[vertex_offset + 1].pos = center;
+	vertices[vertex_offset + 1].pos[right] += half_right;
+	vertices[vertex_offset + 1].pos[up] += half_up;
+	vertices[vertex_offset + 1].colour = colour;
+	// bottom right
+	vertices[vertex_offset + 2].pos = center;
+	vertices[vertex_offset + 2].pos[right] += half_right;
+	vertices[vertex_offset + 2].pos[up] -= half_up;
+	vertices[vertex_offset + 2].colour = colour;
+	// bottom left
+	vertices[vertex_offset + 3].pos = center;
+	vertices[vertex_offset + 3].pos[right] -= half_right;
+	vertices[vertex_offset + 3].pos[up] -= half_up;
+	vertices[vertex_offset + 3].colour = colour;
+
+	indices[index_offset] = vertex_offset;
+	indices[index_offset + 1] = vertex_offset + 1;
+	indices[index_offset + 2] = vertex_offset + 2;
+	indices[index_offset + 3] = vertex_offset;
+	indices[index_offset + 4] = vertex_offset + 2;
+	indices[index_offset + 5] = vertex_offset + 3;
+}
+
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
@@ -743,7 +782,40 @@ void init(	State* out_state,
 
 	// Create cube mesh
 	constexpr uint32 c_num_vertices = 24;
-	Graphics::Vertex* vertices = (Graphics::Vertex*)alloc_temp(sizeof(Graphics::Vertex) * c_num_vertices);
+	Vertex* vertices = (Vertex*)alloc_temp(sizeof(Vertex) * c_num_vertices);
+	constexpr uint32 c_num_indices = 36;
+	uint16* indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_indices);
+
+	// front face
+	Vector3 center = vector3_create(0.0f, 0.5f, 0.0f);
+	Vector3 size = vector3_create(1.0f, 0.0f, 1.0f);
+	Vector3 colour = vector3_create(1.0f, 0.0f, 0.0f);
+	create_cube_face(vertices, 0, indices, 0, center, size, colour);
+	// back face
+	Vector3 center = vector3_create(0.0f, -0.5f, 0.0f);
+	Vector3 size = vector3_create(1.0f, 0.0f, 1.0f);
+	Vector3 colour = vector3_create(0.0f, 1.0f, 0.0f);
+	create_cube_face(vertices, 4, indices, 6, center, size, colour);
+	// left face
+	Vector3 center = vector3_create(-0.5f, 0.0f, 0.0f);
+	Vector3 size = vector3_create(0.0f, 1.0f, 1.0f);
+	Vector3 colour = vector3_create(0.0f, 0.0f, 1.0f);
+	create_cube_face(vertices, 8, indices, 12, center, size, colour);
+	// right face
+	Vector3 center = vector3_create(0.5f, 0.0f, 0.0f);
+	Vector3 size = vector3_create(0.0f, 1.0f, 1.0f);
+	Vector3 colour = vector3_create(1.0f, 1.0f, 0.0f);
+	create_cube_face(vertices], 12, indices, 18, center, size, colour);
+	// bottom face
+	Vector3 center = vector3_create(0.0f, 0.0f, -0.5f);
+	Vector3 size = vector3_create(1.0f, 1.0f, 0.0f);
+	Vector3 colour = vector3_create(0.0f, 1.0f, 1.0f);
+	create_cube_face(vertices], 16, indices, 24, center, size, colour);
+	// top face
+	Vector3 center = vector3_create(0.0f, 0.0f, 0.5f);
+	Vector3 size = vector3_create(1.0f, 1.0f, 0.0f);
+	Vector3 colour = vector3_create(1.0f, 0.0f, 1.0f);
+	create_cube_face(vertices], 20, indices, 30, center, size, colour);
 
 	srand((unsigned int)time(0));
 	for (uint32 i = 0; i < c_max_clients; ++i)

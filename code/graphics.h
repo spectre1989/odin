@@ -12,11 +12,8 @@ namespace Graphics
 
 struct Vertex
 {
-	float32 pos_x;
-	float32 pos_y;
-	float32 col_r;
-	float32 col_g;
-	float32 col_b;
+	Vector3 pos; // todo(jbr) update layout when setting up pipeline
+	Vector3 colour;
 };
 
 struct State
