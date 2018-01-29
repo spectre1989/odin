@@ -120,64 +120,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	client_globals->player_input = {};
 	
 	// init graphics
-	constexpr uint32 c_num_vertices = 4 * c_max_clients;
-	Graphics::Vertex* vertices = (Graphics::Vertex*)alloc_permanent(sizeof(Graphics::Vertex) * c_num_vertices);
-
-	srand((unsigned int)time(0));
-	for (uint32 i = 0; i < c_max_clients; ++i)
-	{
-		// generate colour for client
-		float32 rgb[3] = {0.0f, 0.0f, 0.0f};
-
-		// for a fully saturated colour, need 1 component at 1, and a second
-		// component at <= 1, and the third must be zero
-		int32 component = rand() % 3;
-		rgb[component] = 1.0f;
-
-		component += (rand() % 2) + 1;
-		if(component > 2) component -= 3;
-		rgb[component] = (float32)(rand() % 100) / 100.0f;
-
-		// assign colour to all 4 verts, and zero positions to begin with
-		uint32 start_verts = i * 4;
-		for (uint32 j = 0; j < 4; ++j)
-		{
-			vertices[start_verts + j].pos_x = 0.0f;
-			vertices[start_verts + j].pos_y = 0.0f;
-			vertices[start_verts + j].col_r = rgb[0];
-			vertices[start_verts + j].col_g = rgb[1];
-			vertices[start_verts + j].col_b = rgb[2];
-		}
-		// left = red, right = green
-		// top = green, bottom = nothing
-		vertices[start_verts].col_r = 1.0f; // tl
-		vertices[start_verts].col_g = 0.0f;
-		vertices[start_verts].col_b = 1.0f;
-		vertices[start_verts + 1].col_r = 1.0f; // bl
-		vertices[start_verts + 1].col_g = 0.0f;
-		vertices[start_verts + 1].col_b = 0.0f;
-		vertices[start_verts + 2].col_r = 0.0f; // br
-		vertices[start_verts + 2].col_g = 1.0f;
-		vertices[start_verts + 2].col_b = 0.0f;
-		vertices[start_verts + 3].col_r = 0.0f; // tr
-		vertices[start_verts + 3].col_g = 1.0f;
-		vertices[start_verts + 3].col_b = 1.0f;
-	}
-
-	constexpr uint32 c_num_indices = 6 * c_max_clients;
-	uint16* indices = (uint16*)alloc_permanent(sizeof(uint16) * c_num_indices);
-	
-	for(uint16 index = 0, vertex = 0; index < c_num_indices; index += 6, vertex += 4)
-	{
-		// quads will be top left, bottom left, bottom right, top right
-		indices[index] = vertex;				// 0
-		indices[index + 1] = vertex + 2;		// 2
-		indices[index + 2] = vertex + 1;		// 1
-		indices[index + 3] = vertex;			// 0
-		indices[index + 4] = vertex + 3;		// 3
-		indices[index + 5] = vertex + 2;		// 2
-	}
-
 	Graphics::State* graphics_state = (Graphics::State*)alloc_permanent(sizeof(Graphics::State));
 	const float32 c_fov_y = 60.0f * c_deg_to_rad;
 	const float32 c_near_plane = 1.0f;

@@ -708,69 +708,27 @@ void init(	State* out_state,
 							descriptor_copy_count,
 							descriptor_copies);
 
-	// Create command buffers
+	// create a command pool per swapchain image, so they can be reset per swapchain image
+	out_state->command_pools = (VkCommandPool*)alloc_permanent(sizeof(VkCommandPool) * swapchain_image_count);
+	out_state->command_buffers = (VkCommandBuffer*)alloc_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
+
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 	command_pool_create_info.queueFamilyIndex = graphics_queue_family_index;
 
-	VkCommandPool command_pool;
-	result = vkCreateCommandPool(out_state->device, &command_pool_create_info, 0, &command_pool);
-	assert(result == VK_SUCCESS);
-
-	out_state->command_buffers = (VkCommandBuffer*)alloc_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
 	VkCommandBufferAllocateInfo command_buffer_alloc_info = {};
 	command_buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	command_buffer_alloc_info.commandPool = command_pool;
 	command_buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	command_buffer_alloc_info.commandBufferCount = swapchain_image_count;
-
-	result = vkAllocateCommandBuffers(out_state->device, &command_buffer_alloc_info, out_state->command_buffers);
-	assert(result == VK_SUCCESS);
-
-	VkClearValue clear_colour = {0.0f, 0.0f, 0.0f, 1.0f};
+	command_buffer_alloc_info.commandBufferCount = 1;
 	for (uint32 i = 0; i < swapchain_image_count; ++i)
 	{
-	    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-	    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		// create the pool
+		result = vkCreateCommandPool(out_state->device, &command_pool_create_info, 0, &out_state->command_pools[i]);
+		assert(result == VK_SUCCESS);
 
-	    vkBeginCommandBuffer(out_state->command_buffers[i], &command_buffer_begin_info);
-
-	    VkRenderPassBeginInfo render_pass_begin_info = {};
-		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-		render_pass_begin_info.renderPass = render_pass;
-		render_pass_begin_info.framebuffer = swapchain_framebuffers[i];
-		render_pass_begin_info.renderArea.offset = {0, 0};
-		render_pass_begin_info.renderArea.extent = swapchain_extent;
-		render_pass_begin_info.clearValueCount = 1;
-		render_pass_begin_info.pClearValues = &clear_colour;
-		vkCmdBeginRenderPass(out_state->command_buffers[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-
-		vkCmdBindPipeline(out_state->command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
-
-		VkPipelineBindPoint pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		uint32 first_set = 0;
-		uint32 descriptor_set_count = 1;
-		uint32 dynamic_offset_count = 0;
-		const uint32* dynamic_offsets = 0;
-		vkCmdBindDescriptorSets(out_state->command_buffers[i],
-								pipeline_bind_point,
-								pipeline_layout,
-								first_set,
-								descriptor_set_count,
-								&descriptor_set,
-								dynamic_offset_count,
-								dynamic_offsets);
-
-		VkDeviceSize offset = 0;
-		vkCmdBindVertexBuffers(out_state->command_buffers[i], 0, 1, &vertex_buffer, &offset);
-		vkCmdBindIndexBuffer(out_state->command_buffers[i], index_buffer, 0, VK_INDEX_TYPE_UINT16);
-
-		vkCmdDrawIndexed(out_state->command_buffers[i], num_indices, 1, 0, 0, 0);
-
-		vkCmdEndRenderPass(out_state->command_buffers[i]);
-
-		result = vkEndCommandBuffer(out_state->command_buffers[i]);
+		// create the single command buffer that will get reset each frame
+		command_buffer_alloc_info.commandPool = out_state->command_pools[i];
+		result = vkAllocateCommandBuffers(out_state->device, &command_buffer_alloc_info, &out_state->command_buffers[i]);
 		assert(result == VK_SUCCESS);
 	}
 
@@ -782,16 +740,128 @@ void init(	State* out_state,
 
 	result = vkCreateSemaphore(out_state->device, &semaphore_create_info, 0, &out_state->render_finished_semaphore);
 	assert(result == VK_SUCCESS);
+
+	// Create cube mesh
+	constexpr uint32 c_num_vertices = 24;
+	Graphics::Vertex* vertices = (Graphics::Vertex*)alloc_temp(sizeof(Graphics::Vertex) * c_num_vertices);
+
+	srand((unsigned int)time(0));
+	for (uint32 i = 0; i < c_max_clients; ++i)
+	{
+		// generate colour for client
+		float32 rgb[3] = {0.0f, 0.0f, 0.0f};
+
+		// for a fully saturated colour, need 1 component at 1, and a second
+		// component at <= 1, and the third must be zero
+		int32 component = rand() % 3;
+		rgb[component] = 1.0f;
+
+		component += (rand() % 2) + 1;
+		if(component > 2) component -= 3;
+		rgb[component] = (float32)(rand() % 100) / 100.0f;
+
+		// assign colour to all 4 verts, and zero positions to begin with
+		uint32 start_verts = i * 4;
+		for (uint32 j = 0; j < 4; ++j)
+		{
+			vertices[start_verts + j].pos_x = 0.0f;
+			vertices[start_verts + j].pos_y = 0.0f;
+			vertices[start_verts + j].col_r = rgb[0];
+			vertices[start_verts + j].col_g = rgb[1];
+			vertices[start_verts + j].col_b = rgb[2];
+		}
+		// left = red, right = green
+		// top = green, bottom = nothing
+		vertices[start_verts].col_r = 1.0f; // tl
+		vertices[start_verts].col_g = 0.0f;
+		vertices[start_verts].col_b = 1.0f;
+		vertices[start_verts + 1].col_r = 1.0f; // bl
+		vertices[start_verts + 1].col_g = 0.0f;
+		vertices[start_verts + 1].col_b = 0.0f;
+		vertices[start_verts + 2].col_r = 0.0f; // br
+		vertices[start_verts + 2].col_g = 1.0f;
+		vertices[start_verts + 2].col_b = 0.0f;
+		vertices[start_verts + 3].col_r = 0.0f; // tr
+		vertices[start_verts + 3].col_g = 1.0f;
+		vertices[start_verts + 3].col_b = 1.0f;
+	}
+
+	constexpr uint32 c_num_indices = 36;
+	uint16* indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_indices);
+	
+	for(uint16 index = 0, vertex = 0; index < c_num_indices; index += 6, vertex += 4)
+	{
+		// quads will be top left, bottom left, bottom right, top right
+		indices[index] = vertex;				// 0
+		indices[index + 1] = vertex + 2;		// 2
+		indices[index + 2] = vertex + 1;		// 1
+		indices[index + 3] = vertex;			// 0
+		indices[index + 4] = vertex + 3;		// 3
+		indices[index + 5] = vertex + 2;		// 2
+	}
 }
 
 void update_and_draw(State* state, Matrix4x4* model_matrices, uint32 num_matrices)
 {
-	const uint32 c_vertex_data_size = num_vertices * sizeof(vertices[0]);
-	copy_to_buffer(state->device, state->vertex_buffer_memory, (void*)vertices, c_vertex_data_size);
+	// copy matrix uniform data to buffer
+	const uint32 c_matrix_data_size = num_matrices * sizeof(model_matrices[0]);
+	copy_to_buffer(state->device, state->matrix_buffer_memory, (void*)model_matrices, c_matrix_data_size);
 
+	// get the swapchain image to use
 	uint32 image_index;
     VkResult result = vkAcquireNextImageKHR(state->device, state->swapchain, (uint64)-1, state->image_available_semaphore, 0, &image_index);
     assert(result == VK_SUCCESS);
+
+    // write command buffer
+    result = vkResetCommandPool(state->device, state->command_pools[image_index], 0);
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+    vkBeginCommandBuffer(state->command_buffers[i], &command_buffer_begin_info);
+
+    VkClearValue clear_colour = {0.0f, 0.0f, 0.0f, 1.0f};
+    VkRenderPassBeginInfo render_pass_begin_info = {};
+	render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_begin_info.renderPass = render_pass;
+	render_pass_begin_info.framebuffer = swapchain_framebuffers[i];
+	render_pass_begin_info.renderArea.offset = {0, 0};
+	render_pass_begin_info.renderArea.extent = swapchain_extent;
+	render_pass_begin_info.clearValueCount = 1;
+	render_pass_begin_info.pClearValues = &clear_colour;
+	vkCmdBeginRenderPass(state->command_buffers[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(state->command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+
+	VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(state->command_buffers[i], 0, 1, &state->cube_vertex_buffer, &offset);
+	vkCmdBindIndexBuffer(state->command_buffers[i], state->cube_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+	for(uint32 i = 0; i < num_matrices; ++i)
+	{
+		VkPipelineBindPoint pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		uint32 first_set = 0;
+		uint32 descriptor_set_count = 1;
+		uint32 dynamic_offset_count = 1;
+		uint32 dynamic_offset = i * sizeof(matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
+		vkCmdBindDescriptorSets(state->command_buffers[i],
+								pipeline_bind_point,
+								pipeline_layout,
+								first_set,
+								descriptor_set_count,
+								&descriptor_set,
+								dynamic_offset_count,
+								&dynamic_offset);
+
+		vkCmdDrawIndexed(state->command_buffers[i], num_indices, 1, 0, 0, 0);
+	}
+
+	vkCmdEndRenderPass(state->command_buffers[i]);
+
+	result = vkEndCommandBuffer(state->command_buffers[i]);
+	assert(result == VK_SUCCESS);
+
 
     VkSubmitInfo submit_info = {};
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -805,6 +875,7 @@ void update_and_draw(State* state, Matrix4x4* model_matrices, uint32 num_matrice
 	submit_info.pSignalSemaphores = &state->render_finished_semaphore;
 	result = vkQueueSubmit(state->graphics_queue, 1, &submit_info, 0);
 	assert(result == VK_SUCCESS);
+
 
 	VkPresentInfoKHR present_info = {};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;

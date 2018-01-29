@@ -9,14 +9,14 @@ struct Player_Input
 	bool32 up, down, left, right;
 };
 
-struct Player_State
-{
-	float32 x, y, facing, speed;
-};
-
 struct Player_Visual_State
 {
 	float32 x, y, facing;
 };
 
-void tick_player(Player_State* player_state, Player_Input* player_input);
+struct Player_Nonvisual_State
+{
+	float32 speed;
+};
+
+void tick_player(Player_State* player_visual, Player_Nonvisual_State* player_nonvisual, Player_Input* player_input);
