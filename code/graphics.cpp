@@ -477,7 +477,7 @@ void init(	State* out_state,
  	rasteriser_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
  	rasteriser_create_info.polygonMode = VK_POLYGON_MODE_FILL;
  	rasteriser_create_info.lineWidth = 1.0f;
- 	rasteriser_create_info.cullMode = VK_CULL_MODE_NONE; // todo(jbr) enable culling when uniforms are working
+ 	rasteriser_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
  	rasteriser_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
 	VkPipelineMultisampleStateCreateInfo multisampling_create_info = {};
@@ -624,15 +624,12 @@ void init(	State* out_state,
 	// c1 = (near*far)/(near-far)
 	// c2 = far/(far-near)
 	float32 aspect_ratio = window_width / (float32)window_height;
-	for (uint32 i = 0; i < 16; ++i)
-	{
-		out_state->projection_matrix[i] = 0.0f;
-	}
-	out_state->projection_matrix[0] = 1.0f / (tanf(fov_y * 0.5f) * aspect_ratio);
-	out_state->projection_matrix[6] = -(far_plane / (far_plane - near_plane));
-	out_state->projection_matrix[7] = -1.0f;
-	out_state->projection_matrix[9] = -1.0f / tanf(fov_y * 0.5f);
-	out_state->projection_matrix[14] = (near_plane * far_plane) / (near_plane - far_plane);
+	out_state->projection_matrix = {};
+	out_state->projection_matrix.m11 = 1.0f / (tanf(fov_y * 0.5f) * aspect_ratio);
+	out_state->projection_matrix.m32 = -(far_plane / (far_plane - near_plane));
+	out_state->projection_matrix.m42 = -1.0f;
+	out_state->projection_matrix.m23 = -1.0f / tanf(fov_y * 0.5f);
+	out_state->projection_matrix.m34 = (near_plane * far_plane) / (near_plane - far_plane);
 
 	const uint32 c_projection_matrix_data_size = sizeof(float32) * 16;
 
@@ -787,7 +784,7 @@ void init(	State* out_state,
 	assert(result == VK_SUCCESS);
 }
 
-void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state)
+void update_and_draw(State* state, Matrix4x4* model_matrices, uint32 num_matrices)
 {
 	const uint32 c_vertex_data_size = num_vertices * sizeof(vertices[0]);
 	copy_to_buffer(state->device, state->vertex_buffer_memory, (void*)vertices, c_vertex_data_size);

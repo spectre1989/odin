@@ -29,17 +29,16 @@ struct State
 	VkSemaphore image_available_semaphore;
 	VkSemaphore render_finished_semaphore;
 	VkCommandBuffer* command_buffers;
-	float projection_matrix[16];
-	VkBuffer projection_matrix_buffer;
-	VkDeviceMemory projection_matrix_buffer_memory;
+	Matrix4x4 projection_matrix;
+	VkBuffer matrix_buffer;
+	VkDeviceMemory matrix_buffer_memory;
 };
 
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			float32 fov_y, float32 near_plane, float32 far_plane, 
-			uint32 num_vertices, uint16* indices, uint32 num_indices);
-void update_and_draw(Vertex* vertices, uint32 num_vertices, State* state);
+			uint32 max_objects);
+void update_and_draw(State* state, Matrix4x4* matrices, uint32 num_matrices);
 
 
 } // namespace Graphics
