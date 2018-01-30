@@ -17,10 +17,18 @@ vulkan_debug_callback(	VkDebugReportFlagsEXT /*flags*/,
     return VK_FALSE;
 }
 
-static void create_buffer(VkPhysicalDevice physical_device, VkDevice device, const VkBufferCreateInfo* pc_buffer_create_info, VkBuffer* p_out_buffer, VkDeviceMemory* p_out_buffer_memory)
+static void create_buffer(VkBuffer* out_buffer, VkDeviceMemory* out_buffer_memory, 
+	VkPhysicalDevice physical_device, VkDevice device, 
+	VkBufferUsageFlags buffer_usage_flags, uint32 size)
 {
+	VkBufferCreateInfo buffer_create_info = {};
+	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_create_info.size = size;
+	buffer_create_info.usage = buffer_usage_flags;
+	buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
 	VkBuffer buffer;
-	VkResult result = vkCreateBuffer(device, pc_buffer_create_info, 0, &buffer);
+	VkResult result = vkCreateBuffer(device, &buffer_create_info, 0, &buffer);
 	assert(result == VK_SUCCESS);
 
 	VkMemoryRequirements memory_requirements;
@@ -54,8 +62,8 @@ static void create_buffer(VkPhysicalDevice physical_device, VkDevice device, con
 
 	vkBindBufferMemory(device, buffer, buffer_memory, 0);
 
-	*p_out_buffer = buffer;
-	*p_out_buffer_memory = buffer_memory;
+	*out_buffer = buffer;
+	*out_buffer_memory = buffer_memory;
 }
 
 static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* src, uint32 size)
@@ -73,28 +81,28 @@ static void create_cube_face(Vertex* vertices, uint32 vertex_offset,
 	uint32 up, float32 up_size,
 	Vector3* colour)
 {
-	float32 half_right = right * 0.5f;
-	float32 half_up = up * 0.5f;
+	float32 half_right_size = right_size * 0.5f;
+	float32 half_up_size = up_size * 0.5f;
 
 	// top left
 	vertices[vertex_offset].pos = center;
-	vertices[vertex_offset].pos[right] -= half_right;
-	vertices[vertex_offset].pos[up] += half_up;
+	vertices[vertex_offset].pos[right] -= half_right_size;
+	vertices[vertex_offset].pos[up] += half_up_size;
 	vertices[vertex_offset].colour = colour;
 	// top right
 	vertices[vertex_offset + 1].pos = center;
-	vertices[vertex_offset + 1].pos[right] += half_right;
-	vertices[vertex_offset + 1].pos[up] += half_up;
+	vertices[vertex_offset + 1].pos[right] += half_right_size;
+	vertices[vertex_offset + 1].pos[up] += half_up_size;
 	vertices[vertex_offset + 1].colour = colour;
 	// bottom right
 	vertices[vertex_offset + 2].pos = center;
-	vertices[vertex_offset + 2].pos[right] += half_right;
-	vertices[vertex_offset + 2].pos[up] -= half_up;
+	vertices[vertex_offset + 2].pos[right] += half_right_size;
+	vertices[vertex_offset + 2].pos[up] -= half_up_size;
 	vertices[vertex_offset + 2].colour = colour;
 	// bottom left
 	vertices[vertex_offset + 3].pos = center;
-	vertices[vertex_offset + 3].pos[right] -= half_right;
-	vertices[vertex_offset + 3].pos[up] -= half_up;
+	vertices[vertex_offset + 3].pos[right] -= half_right_size;
+	vertices[vertex_offset + 3].pos[up] -= half_up_size;
 	vertices[vertex_offset + 3].colour = colour;
 
 	indices[index_offset] = vertex_offset;
@@ -474,13 +482,13 @@ void init(	State* out_state,
 	vertex_input_attribute_desc[0] = {};
 	vertex_input_attribute_desc[0].binding = 0;
 	vertex_input_attribute_desc[0].location = 0;
-	vertex_input_attribute_desc[0].format = VK_FORMAT_R32G32_SFLOAT;
+	vertex_input_attribute_desc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 	vertex_input_attribute_desc[0].offset = 0;
 	vertex_input_attribute_desc[1] = {};
 	vertex_input_attribute_desc[1].binding = 0;
 	vertex_input_attribute_desc[1].location = 1;
 	vertex_input_attribute_desc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertex_input_attribute_desc[1].offset = 8;
+	vertex_input_attribute_desc[1].offset = 12;
 
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -631,27 +639,6 @@ void init(	State* out_state,
 		assert(result == VK_SUCCESS);
 	}
 
-	// Create vertex buffer
-	VkBufferCreateInfo buffer_create_info = {};
-	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_create_info.size = num_vertices * sizeof(Vertex);
-	buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VkBuffer vertex_buffer;
-	create_buffer(physical_device, out_state->device, &buffer_create_info, &vertex_buffer, &out_state->vertex_buffer_memory);
-
-	// Create index buffer
-	const uint32 c_index_buffer_size = num_indices * sizeof(indices[0]);
-	buffer_create_info.size = c_index_buffer_size;
-	buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-
-	VkBuffer index_buffer;
-	VkDeviceMemory index_buffer_memory;
-	create_buffer(physical_device, out_state->device, &buffer_create_info, &index_buffer, &index_buffer_memory);
-
-	copy_to_buffer(out_state->device, index_buffer_memory, (void*)indices, c_index_buffer_size);
-
 	// create projection matrix
 	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
 	// 1/(tan(fovx/2)*aspect)	0	0				0
@@ -682,11 +669,12 @@ void init(	State* out_state,
     buffer_create_info.queueFamilyIndexCount = 0;
     buffer_create_info.pQueueFamilyIndices = 0;
 	
-	create_buffer(	physical_device, 
+	create_buffer(	&out_state->projection_matrix_buffer, 
+					&out_state->projection_matrix_buffer_memory,
+					physical_device, 
 					out_state->device, 
-					&buffer_create_info, 
-					&out_state->projection_matrix_buffer, 
-					&out_state->projection_matrix_buffer_memory);
+					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+					c_projection_matrix_data_size);
 
 	copy_to_buffer(	out_state->device, 
 					out_state->projection_matrix_buffer_memory, 
@@ -787,90 +775,53 @@ void init(	State* out_state,
 	uint16* indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_indices);
 
 	// front face
+	constexpr float32 c_size = 1.0f;
+	constexpr uint32 c_x_axis = 0;
+	constexpr uint32 c_y_axis = 1;
+	constexpr uint32 c_z_axis = 2;
 	Vector3 center = vector3_create(0.0f, 0.5f, 0.0f);
-	Vector3 size = vector3_create(1.0f, 0.0f, 1.0f);
 	Vector3 colour = vector3_create(1.0f, 0.0f, 0.0f);
-	create_cube_face(vertices, 0, indices, 0, center, size, colour);
+	create_cube_face(vertices, 0, indices, 0, center, c_x_axis, c_size, c_z_axis, c_size, colour);
 	// back face
 	Vector3 center = vector3_create(0.0f, -0.5f, 0.0f);
-	Vector3 size = vector3_create(1.0f, 0.0f, 1.0f);
 	Vector3 colour = vector3_create(0.0f, 1.0f, 0.0f);
-	create_cube_face(vertices, 4, indices, 6, center, size, colour);
+	create_cube_face(vertices, 4, indices, 6, center, c_x_axis, -c_size, c_z_axis, c_size, colour);
 	// left face
 	Vector3 center = vector3_create(-0.5f, 0.0f, 0.0f);
-	Vector3 size = vector3_create(0.0f, 1.0f, 1.0f);
 	Vector3 colour = vector3_create(0.0f, 0.0f, 1.0f);
-	create_cube_face(vertices, 8, indices, 12, center, size, colour);
+	create_cube_face(vertices, 8, indices, 12, center, c_y_axis, c_size, c_z_axis, c_size, colour);
 	// right face
 	Vector3 center = vector3_create(0.5f, 0.0f, 0.0f);
-	Vector3 size = vector3_create(0.0f, 1.0f, 1.0f);
 	Vector3 colour = vector3_create(1.0f, 1.0f, 0.0f);
-	create_cube_face(vertices], 12, indices, 18, center, size, colour);
+	create_cube_face(vertices], 12, indices, 18, center, c_y_axis, -c_size, c_z_axis, c_size, colour);
 	// bottom face
 	Vector3 center = vector3_create(0.0f, 0.0f, -0.5f);
-	Vector3 size = vector3_create(1.0f, 1.0f, 0.0f);
 	Vector3 colour = vector3_create(0.0f, 1.0f, 1.0f);
-	create_cube_face(vertices], 16, indices, 24, center, size, colour);
+	create_cube_face(vertices], 16, indices, 24, center, c_x_axis, c_size, c_y_axis, c_size, colour);
 	// top face
 	Vector3 center = vector3_create(0.0f, 0.0f, 0.5f);
-	Vector3 size = vector3_create(1.0f, 1.0f, 0.0f);
 	Vector3 colour = vector3_create(1.0f, 0.0f, 1.0f);
-	create_cube_face(vertices], 20, indices, 30, center, size, colour);
+	create_cube_face(vertices], 20, indices, 30, center, c_x_axis, c_size, c_y_axis, -c_size, colour);
 
-	srand((unsigned int)time(0));
-	for (uint32 i = 0; i < c_max_clients; ++i)
-	{
-		// generate colour for client
-		float32 rgb[3] = {0.0f, 0.0f, 0.0f};
+	// Create vertex buffer
+	constexpr uint32 c_cube_vertex_buffer_size = c_num_vertices * sizeof(Vertex);
 
-		// for a fully saturated colour, need 1 component at 1, and a second
-		// component at <= 1, and the third must be zero
-		int32 component = rand() % 3;
-		rgb[component] = 1.0f;
+	VkDeviceMemory cube_vertex_buffer_memory;
+	create_buffer(&out_state->cube_vertex_buffer, &cube_vertex_buffer_memory, 
+		physical_device, out_state->device, 
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_cube_vertex_buffer_size);
 
-		component += (rand() % 2) + 1;
-		if(component > 2) component -= 3;
-		rgb[component] = (float32)(rand() % 100) / 100.0f;
+	copy_to_buffer(out_state->device, cube_vertex_buffer_memory, (void*)vertices, c_cube_vertex_buffer_size);
 
-		// assign colour to all 4 verts, and zero positions to begin with
-		uint32 start_verts = i * 4;
-		for (uint32 j = 0; j < 4; ++j)
-		{
-			vertices[start_verts + j].pos_x = 0.0f;
-			vertices[start_verts + j].pos_y = 0.0f;
-			vertices[start_verts + j].col_r = rgb[0];
-			vertices[start_verts + j].col_g = rgb[1];
-			vertices[start_verts + j].col_b = rgb[2];
-		}
-		// left = red, right = green
-		// top = green, bottom = nothing
-		vertices[start_verts].col_r = 1.0f; // tl
-		vertices[start_verts].col_g = 0.0f;
-		vertices[start_verts].col_b = 1.0f;
-		vertices[start_verts + 1].col_r = 1.0f; // bl
-		vertices[start_verts + 1].col_g = 0.0f;
-		vertices[start_verts + 1].col_b = 0.0f;
-		vertices[start_verts + 2].col_r = 0.0f; // br
-		vertices[start_verts + 2].col_g = 1.0f;
-		vertices[start_verts + 2].col_b = 0.0f;
-		vertices[start_verts + 3].col_r = 0.0f; // tr
-		vertices[start_verts + 3].col_g = 1.0f;
-		vertices[start_verts + 3].col_b = 1.0f;
-	}
+	// Create index buffer
+	const uint32 c_cube_index_buffer_size = num_indices * sizeof(indices[0]);
 
-	constexpr uint32 c_num_indices = 36;
-	uint16* indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_indices);
-	
-	for(uint16 index = 0, vertex = 0; index < c_num_indices; index += 6, vertex += 4)
-	{
-		// quads will be top left, bottom left, bottom right, top right
-		indices[index] = vertex;				// 0
-		indices[index + 1] = vertex + 2;		// 2
-		indices[index + 2] = vertex + 1;		// 1
-		indices[index + 3] = vertex;			// 0
-		indices[index + 4] = vertex + 3;		// 3
-		indices[index + 5] = vertex + 2;		// 2
-	}
+	VkDeviceMemory cube_index_buffer_memory;
+	create_buffer(&out_state->cube_index_buffer, &cube_index_buffer_memory,
+		physical_device, out_state->device,
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_cube_index_buffer_size);
+
+	copy_to_buffer(out_state->device, cube_index_buffer_memory, (void*)indices, c_cube_index_buffer_size);
 }
 
 void update_and_draw(State* state, Matrix4x4* model_matrices, uint32 num_matrices)
