@@ -116,8 +116,7 @@ static void create_cube_face(Vertex* vertices, uint32 vertex_offset,
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			float32 fov_y, float32 near_plane, float32 far_plane, 
-			uint32 num_vertices, uint16* indices, uint32 num_indices)
+			uint32 max_objects)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -639,31 +638,12 @@ void init(	State* out_state,
 		assert(result == VK_SUCCESS);
 	}
 
-	// create projection matrix
-	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
-	// 1/(tan(fovx/2)*aspect)	0	0				0
-	// 0						0	-1/tan(fovy/2)	0
-	// 0						-c2	0				c1
-	// 0						-1	0				0
-	// this is stored column major
-	// NDC Z = c1/w + c2
-	// c1 = (near*far)/(near-far)
-	// c2 = far/(far-near)
-	float32 aspect_ratio = window_width / (float32)window_height;
-	out_state->projection_matrix = {};
-	out_state->projection_matrix.m11 = 1.0f / (tanf(fov_y * 0.5f) * aspect_ratio);
-	out_state->projection_matrix.m32 = -(far_plane / (far_plane - near_plane));
-	out_state->projection_matrix.m42 = -1.0f;
-	out_state->projection_matrix.m23 = -1.0f / tanf(fov_y * 0.5f);
-	out_state->projection_matrix.m34 = (near_plane * far_plane) / (near_plane - far_plane);
-
-	const uint32 c_projection_matrix_data_size = sizeof(float32) * 16;
-
+	const uint32 c_matrix_buffer_size = sizeof(Matrix_4x4) * max_objects;
 	buffer_create_info = {};
 	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_create_info.pNext = NULL;
 	buffer_create_info.flags = 0;
-    buffer_create_info.size = c_projection_matrix_data_size;
+    buffer_create_info.size = c_matrix_buffer_size;
     buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     buffer_create_info.queueFamilyIndexCount = 0;
@@ -674,12 +654,7 @@ void init(	State* out_state,
 					physical_device, 
 					out_state->device, 
 					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-					c_projection_matrix_data_size);
-
-	copy_to_buffer(	out_state->device, 
-					out_state->projection_matrix_buffer_memory, 
-					(void*)out_state->projection_matrix, 
-					c_projection_matrix_data_size);
+					c_matrix_buffer_size);
 
 	// Create descriptor set to store the projection matrix
 	VkDescriptorPoolSize descriptor_pool_size = {};
@@ -824,7 +799,7 @@ void init(	State* out_state,
 	copy_to_buffer(out_state->device, cube_index_buffer_memory, (void*)indices, c_cube_index_buffer_size);
 }
 
-void update_and_draw(State* state, Matrix4x4* model_matrices, uint32 num_matrices)
+void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matrices)
 {
 	// copy matrix uniform data to buffer
 	const uint32 c_matrix_data_size = num_matrices * sizeof(model_matrices[0]);

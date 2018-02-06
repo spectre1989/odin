@@ -38,11 +38,11 @@ uint32	server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Play
 void	server_msg_state_read(
 	uint8* buffer,
 	uint32* tick_number,
-	Player_State* player_state, // clients full player state
+	Player_Nonvisual_State* local_player_nonvisual_state,
 	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
-	Player_Visual_State* additional_player_states, // visual state of other players will be stored here
-	uint32 num_additional_player_states, // max number of other players the client can handle
-	uint32* num_additional_player_states_received); // number of additional players stored here
+	Player_Visual_State* player_visual_states, // visual state of all players
+	uint32 max_players, // max number of players the client can handle
+	uint32* num_players); // number of players received
 
 
 } // namespace Net

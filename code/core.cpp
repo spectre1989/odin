@@ -2,6 +2,39 @@
 
 
 
+Vector3 vector3_create(float32 x, float32 y, float32 z)
+{
+	Vector3 v;
+	v.x = x;
+	v.y = y;
+	v.z = z;
+	return v;
+}
+
+
+void matrix_4x4_create_projection(Matrix_4x4* matrix, 
+	float32 fov_y, float32 aspect_ratio,
+	float32 near_plane, float32 far_plane)
+{
+	// create projection matrix
+	// Note: Vulkan NDC coordinates are top-left corner (-1, -1), z 0-1
+	// 1/(tan(fovx/2)*aspect)	0	0				0
+	// 0						0	-1/tan(fovy/2)	0
+	// 0						-c2	0				c1
+	// 0						-1	0				0
+	// this is stored column major
+	// NDC Z = c1/w + c2
+	// c1 = (near*far)/(near-far)
+	// c2 = far/(far-near)
+	*matrix = {};
+	matrix->m11 = 1.0f / (tanf(fov_y * 0.5f) * aspect_ratio);
+	matrix->m32 = -(far_plane / (far_plane - near_plane));
+	matrix->m42 = -1.0f;
+	matrix->m23 = -1.0f / tanf(fov_y * 0.5f);
+	matrix->m34 = (near_plane * far_plane) / (near_plane - far_plane);
+}
+
+
 void circular_index_create(Circular_Index* index, uint32 capacity)
 {
 	index->head = 0;

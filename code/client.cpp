@@ -121,13 +121,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	
 	// init graphics
 	Graphics::State* graphics_state = (Graphics::State*)alloc_permanent(sizeof(Graphics::State));
-	const float32 c_fov_y = 60.0f * c_deg_to_rad;
-	const float32 c_near_plane = 1.0f;
-	const float32 c_far_plane = 10.0f;
 	Graphics::init(graphics_state, window_handle, instance, 
-					c_window_width, c_window_height, 
-					c_fov_y, c_near_plane, c_far_plane, 
-					c_num_vertices, indices, c_num_indices);
+					c_window_width, c_window_height, c_max_clients);
 
 	if (!Net::init())
 	{
@@ -151,14 +146,27 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_State* local_player = (Player_State*)alloc_permanent(sizeof(Player_State));
+	Player_Visual_State* local_player_visual = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
+	Player_Nonvisual_State* local_player_nonvisual = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
+
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
-	Player_State* prediction_history_state = (Player_State*)alloc_permanent(sizeof(Player_State) * c_prediction_history_capacity);
+	Player_Visual_State* prediction_history_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_prediction_history_capacity);
+	Player_Nonvisual_State* prediction_history_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State) * c_prediction_history_capacity);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_prediction_history_capacity);
 	Circular_Index* prediction_history_index = (Circular_Index*)alloc_permanent(sizeof(Circular_Index));
 	circular_index_create(prediction_history_index, c_prediction_history_capacity);
-	Player_Visual_State* remote_players = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+
+	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
 	uint32 num_players = 0;
+
+	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
+	constexpr float32 c_aspect_ratio = c_window_width / (float32)c_window_height;
+	constexpr float32 c_near_plane = 1.0f;
+	constexpr float32 c_far_plane = 10.0f;
+	Matrix_4x4* projection_matrix = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4));
+	matrix_4x4_create_projection(projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
+
 	uint32 slot = (uint32)-1;
 	uint32 tick_number = (uint32)-1;
 	uint32 target_tick_number = (uint32)-1;
@@ -218,11 +226,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				{
 					uint32 received_tick_number;
 					uint32 received_timestamp;
-					Player_State received_local_player_state;
-					uint32 num_received_remote_players;
-					Net::server_msg_state_read(socket_buffer, &received_tick_number, &received_local_player_state, &received_timestamp, remote_players, c_max_clients, &num_received_remote_players);
-
-					num_players = num_received_remote_players + 1;
+					Player_Nonvisual_State received_local_player_nonvisual_state;
+					Net::server_msg_state_read(socket_buffer, &received_tick_number, &received_local_player_nonvisual_state, &received_timestamp, player_visual_states, c_max_clients, &num_players);
 
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
 					uint32 est_rtt_ms = time_now_ms - received_timestamp;

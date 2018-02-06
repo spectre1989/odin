@@ -88,79 +88,64 @@ void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint32* out
 	}
 }
 
-uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players, uint32 tick_number, uint32 target_player, uint32 target_player_client_timestamp)
+uint32 server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_Nonvisual_State* local_player_nonvisual_state, Player_Visual_State* player_visual_states, uint32 max_players, uint32 tick_number, uint32 target_player_client_timestamp)
 {
 	buffer[0] = (uint8)Server_Message::State;
 
 	memcpy(&buffer[1], &tick_number, 4);
-
 	memcpy(&buffer[5], &target_player_client_timestamp, 4);
-
 	uint32 bytes_written = 9;
-	assert(player_endpoints[target_player].address);
-	memcpy(&buffer[bytes_written], &player_states[target_player].x, sizeof(player_states[target_player].x));
-	bytes_written += sizeof(player_states[target_player].x);
-	memcpy(&buffer[bytes_written], &player_states[target_player].y, sizeof(player_states[target_player].y));
-	bytes_written += sizeof(player_states[target_player].y);
-	memcpy(&buffer[bytes_written], &player_states[target_player].facing, sizeof(player_states[target_player].facing));
-	bytes_written += sizeof(player_states[target_player].facing);
-	memcpy(&buffer[bytes_written], &player_states[target_player].speed, sizeof(player_states[target_player].speed));
-	bytes_written += sizeof(player_states[target_player].speed);
 
-	uint8* num_additional_players_data = &buffer[bytes_written]; // done later
-	bytes_written += 2;
+	memcpy(&buffer[bytes_written], &local_player_nonvisual_state->speed, sizeof(local_player_nonvisual_state->speed));
+	bytes_written += sizeof(local_player_nonvisual_state->speed);
 
-	uint32 num_additional_players = 0;
-	for (uint32 i = 0; i < num_players; ++i)
+	uint8* num_players_ptr = &buffer[bytes_written]; // done later
+	bytes_written += 1;
+
+	uint8 num_players = 0;
+	for (uint32 i = 0; i < max_players; ++i)
 	{
-		if (i != target_player && player_endpoints[i].address)
+		if (player_endpoints[i].address)
 		{
-			++num_additional_players;
+			++num_players;
 
-			memcpy(&buffer[bytes_written], &player_states[i].x, sizeof(player_states[i].x));
-			bytes_written += sizeof(player_states[i].x);
-			memcpy(&buffer[bytes_written], &player_states[i].y, sizeof(player_states[i].y));
-			bytes_written += sizeof(player_states[i].y);
-			memcpy(&buffer[bytes_written], &player_states[i].facing, sizeof(player_states[i].facing));
-			bytes_written += sizeof(player_states[i].facing);
+			memcpy(&buffer[bytes_written], &player_visual_states[i].x, sizeof(player_visual_states[i].x));
+			bytes_written += sizeof(player_visual_states[i].x);
+			memcpy(&buffer[bytes_written], &player_visual_states[i].y, sizeof(player_visual_states[i].y));
+			bytes_written += sizeof(player_visual_states[i].y);
+			memcpy(&buffer[bytes_written], &player_visual_states[i].facing, sizeof(player_visual_states[i].facing));
+			bytes_written += sizeof(player_visual_states[i].facing);
 		}
 	}
 
-	memcpy(num_additional_players_data, &num_additional_players, 2);
+	*num_players_ptr = num_players;
 
 	return bytes_written;
 }
 void server_msg_state_read(
 	uint8* buffer,
 	uint32* tick_number,
-	Player_State* player_state, // clients full player state
+	Player_Nonvisual_State* local_player_nonvisual_state,
 	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
-	Player_Visual_State* additional_player_states, // visual state of other players will be stored here
-	uint32 num_additional_player_states, // max number of other players the client can handle
-	uint32* num_additional_player_states_received) // number of additional players stored here
+	Player_Visual_State* player_visual_states, // visual state of all players
+	uint32 max_players, // max number of players the client can handle
+	uint32* num_players) // number of players received
 {
 	assert(buffer[0] == (uint8)Server_Message::State);
 
 	memcpy(tick_number, &buffer[1], 4);
-
 	memcpy(client_timestamp, &buffer[5], 4);
-
 	uint32 bytes_read = 9;
-	memcpy(&player_state->x, &buffer[bytes_read], sizeof(player_state->x));
-	bytes_read += sizeof(player_state->x);
-	memcpy(&player_state->y, &buffer[bytes_read], sizeof(player_state->y));
-	bytes_read += sizeof(player_state->y);
-	memcpy(&player_state->facing, &buffer[bytes_read], sizeof(player_state->facing));
-	bytes_read += sizeof(player_state->facing);
-	memcpy(&player_state->speed, &buffer[bytes_read], sizeof(player_state->speed));
-	bytes_read += sizeof(player_state->speed);
 
-	uint32 num_additional_player_states_in_packet = 0;
-	memcpy(&num_additional_player_states_in_packet, &buffer[bytes_read], 2);
-	bytes_read += 2;
+	memcpy(&local_player_nonvisual_state->speed, &buffer[bytes_read], sizeof(local_player_nonvisual_state->speed));
+	bytes_read += sizeof(local_player_nonvisual_state->speed);
+
+	uint8 num_player_states_in_packet = 0;
+	memcpy(&num_player_states_in_packet, &buffer[bytes_read], 1);
+	bytes_read += 1;
 
 	uint32 i;
-	for (i = 0; i < num_additional_player_states_in_packet && i < num_additional_player_states; ++i)
+	for (i = 0; i < num_player_states_in_packet && i < max_players; ++i)
 	{
 		memcpy(&additional_player_states[i].x, &buffer[bytes_read], sizeof(additional_player_states[i].x));
 		bytes_read += sizeof(additional_player_states[i].x);
@@ -170,7 +155,7 @@ void server_msg_state_read(
 		bytes_read += sizeof(additional_player_states[i].facing);
 	}
 
-	*num_additional_player_states_received = i;
+	*num_players = i;
 }
 
 

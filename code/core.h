@@ -72,6 +72,7 @@ struct Matrix_4x4
 			m13, m23, m33, m43,
 			m14, m24, m34, m44;
 };
+void matrix_4x4_create_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
 
 
 

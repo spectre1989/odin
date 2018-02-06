@@ -25,7 +25,6 @@ struct State
 	VkSemaphore image_available_semaphore;
 	VkSemaphore render_finished_semaphore;
 	VkCommandBuffer* command_buffers;
-	Matrix4x4 projection_matrix;
 	VkBuffer matrix_buffer;
 	VkDeviceMemory matrix_buffer_memory;
 	VkBuffer cube_vertex_buffer;
@@ -36,7 +35,7 @@ void init(	State* out_state,
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
 			uint32 max_objects);
-void update_and_draw(State* state, Matrix4x4* matrices, uint32 num_matrices);
+void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_matrices);
 
 
 } // namespace Graphics
