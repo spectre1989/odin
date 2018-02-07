@@ -5,8 +5,8 @@
 
 
 struct Player_Input;
-struct Player_State;
 struct Player_Visual_State;
+struct Player_Nonvisual_State;
 
 
 
@@ -34,15 +34,25 @@ enum class Server_Message : uint8
 };
 uint32	server_msg_join_result_write(uint8* buffer, bool32 success, uint32 slot);
 void	server_msg_join_result_read(uint8* buffer, bool32* out_success, uint32* out_slot);
-uint32	server_msg_state_write(uint8* buffer, IP_Endpoint* player_endpoints, Player_State* player_states, uint32 num_players, uint32 tick_number, uint32 target_player, uint32 target_player_client_timestamp);
+uint32	server_msg_state_write(
+	uint8* buffer, 
+	uint32 tick_number, 
+	uint32 client_timestamp, 
+	Player_Visual_State* local_player_visual_state,
+	Player_Nonvisual_State* local_player_nonvisual_state,
+	IP_Endpoint* player_endpoints,
+	Player_Visual_State* player_visual_states,
+	uint32 num_players);
 void	server_msg_state_read(
 	uint8* buffer,
 	uint32* tick_number,
-	Player_Nonvisual_State* local_player_nonvisual_state,
 	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
-	Player_Visual_State* player_visual_states, // visual state of all players
-	uint32 max_players, // max number of players the client can handle
-	uint32* num_players); // number of players received
+	Player_Visual_State* local_player_visual_state,
+	Player_Nonvisual_State* local_player_nonvisual_state,
+	Player_Visual_State* remote_player_visual_states,
+	uint32* num_remote_players,
+	uint32 max_players); // max number of remote players the client can handle
+	
 
 
 } // namespace Net

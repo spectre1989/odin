@@ -146,8 +146,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_Visual_State* local_player_visual = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
-	Player_Nonvisual_State* local_player_nonvisual = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
+	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
+	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
 
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
 	Player_Visual_State* prediction_history_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_prediction_history_capacity);
@@ -226,8 +226,17 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				{
 					uint32 received_tick_number;
 					uint32 received_timestamp;
+					Player_Visual_State received_local_player_visual_state;
 					Player_Nonvisual_State received_local_player_nonvisual_state;
-					Net::server_msg_state_read(socket_buffer, &received_tick_number, &received_local_player_nonvisual_state, &received_timestamp, player_visual_states, c_max_clients, &num_players);
+					Net::server_msg_state_read(
+						socket_buffer, 
+						&received_tick_number, 
+						&received_timestamp, 
+						&received_local_player_visual_state,
+						&received_local_player_nonvisual_state, 
+						remote_player_visual_states, 
+						&num_players,
+						c_max_remote_players);
 
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
 					uint32 est_rtt_ms = time_now_ms - received_timestamp;
@@ -243,7 +252,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					 	received_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
-						*local_player = received_local_player_state;
+						*local_player_nonvisual_state = received_local_player_nonvisual_state;
 						tick_number = target_tick_number;
 					}
 					else
