@@ -146,7 +146,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
+	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+	bool32* players_present = (bool32*)alloc_permanent(sizeof(bool32) * c_max_clients);
+	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
+	uint32 num_players = 0;
+
 	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
 
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
@@ -156,10 +160,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Circular_Index* prediction_history_index = (Circular_Index*)alloc_permanent(sizeof(Circular_Index));
 	circular_index_create(prediction_history_index, c_prediction_history_capacity);
 
-	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
-	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
-	uint32 num_players = 0;
-
 	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
 	constexpr float32 c_aspect_ratio = c_window_width / (float32)c_window_height;
 	constexpr float32 c_near_plane = 1.0f;
@@ -167,7 +167,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Matrix_4x4* projection_matrix = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4));
 	matrix_4x4_create_projection(projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
 
-	uint32 slot = (uint32)-1;
+	uint32 local_player_slot = (uint32)-1;
 	uint32 tick_number = (uint32)-1;
 	uint32 target_tick_number = (uint32)-1;
 	Timer local_timer = timer_create();
@@ -232,11 +232,10 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						socket_buffer, 
 						&received_tick_number, 
 						&received_timestamp, 
-						&received_local_player_visual_state,
 						&received_local_player_nonvisual_state, 
-						remote_player_visual_states, 
-						&num_players,
-						c_max_remote_players);
+						player_visual_states, 
+						players_present,
+						c_max_clients);
 
 					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
 					uint32 est_rtt_ms = time_now_ms - received_timestamp;
