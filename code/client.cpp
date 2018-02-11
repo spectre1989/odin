@@ -151,6 +151,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
 	uint32 num_players = 0;
 
+	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
 	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
 
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
@@ -214,7 +215,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				case Net::Server_Message::Join_Result:
 				{
 					bool32 success;
-					Net::server_msg_join_result_read(socket_buffer, &success, &slot);
+					Net::server_msg_join_result_read(socket_buffer, &success, &local_player_slot);
 					if (!success)
 					{
 						log("[client] server didn't let us in\n");
@@ -226,7 +227,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				{
 					uint32 received_tick_number;
 					uint32 received_timestamp;
-					Player_Visual_State received_local_player_visual_state;
 					Player_Nonvisual_State received_local_player_nonvisual_state;
 					Net::server_msg_state_read(
 						socket_buffer, 
@@ -268,8 +268,10 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						if (prediction_history_index->size &&
 							oldest_predicted_tick_number == received_tick_number)
 						{
-							float32 dx = prediction_history_state[prediction_history_index->head].x - received_local_player_state.x;
-							float32 dy = prediction_history_state[prediction_history_index->head].y - received_local_player_state.y;
+							Player_Visual_State* received_local_player_visual_state = &player_visual_states[local_player_slot];
+
+							float32 dx = prediction_history_visual_state[prediction_history_index->head].x - received_local_player_visual_state->x;
+							float32 dy = prediction_history_visual_state[prediction_history_index->head].y - received_local_player_visual_state->y;
 							constexpr float32 c_max_error = 0.01f;
 							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 							float32 error_sq = (dx * dx) + (dy * dy);
@@ -277,14 +279,16 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 							{
 								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
 
-								*local_player = received_local_player_state;
+								*local_player_visual_state = *received_local_player_visual_state;
+								*local_player_nonvisual_state = received_local_player_nonvisual_state;
 								for (uint32 i = 0; i < prediction_history_index->size; ++i)
 								{
 									uint32 circular_i = circular_index_iterator(prediction_history_index, i);
 									
-									prediction_history_state[circular_i] = *local_player;
+									prediction_history_visual_state[circular_i] = *local_player_visual_state;
+									prediction_history_nonvisual_state[circular_i] = *local_player_nonvisual_state;
 
-									tick_player(local_player, &prediction_history_input[circular_i]);
+									tick_player(local_player_visual_state, local_player_nonvisual_state, &prediction_history_input[circular_i]);
 								}
 							}
 						}
@@ -296,11 +300,11 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// tick player if we have one
-		if (slot != (uint32)-1 && 
+		if (local_player_slot != (uint32)-1 && 
 			tick_number != (uint32)-1)
 		{
 			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, slot, &client_globals->player_input, time_ms, tick_number);
+			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, &client_globals->player_input, time_ms, tick_number);
 			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
 
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
@@ -311,20 +315,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					circular_index_pop(prediction_history_index);
 				}
 				uint32 tail = circular_index_tail(prediction_history_index);
-				prediction_history_state[tail] = *local_player;
+				prediction_history_visual_state[tail] = *local_player_visual_state;
+				prediction_history_nonvisual_state[tail] = *local_player_nonvisual_state;
 				prediction_history_input[tail] = client_globals->player_input;
 				circular_index_push(prediction_history_index);
 
-				tick_player(local_player, &client_globals->player_input);
+				tick_player(local_player_visual_state, local_player_nonvisual_state, &client_globals->player_input);
 				++tick_number;
 			}
 
 			++target_tick_number;
 
 			// we're always the last player in the array
-			remote_players[num_players - 1].x = local_player->x;
-			remote_players[num_players - 1].y = local_player->y;
-			remote_players[num_players - 1].facing = local_player->facing;
+			player_visual_states[local_player_slot] = *local_player_visual_state;
 		}
 
 
