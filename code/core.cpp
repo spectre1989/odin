@@ -11,6 +11,27 @@ Vec_3f vec_3f_create(float32 x, float32 y, float32 z)
 	return v;
 }
 
+void vec_3f_add(Vec_3f* result, Vec_3f* v)
+{
+	result->x += v->x;
+	result->y += v->y;
+	result->z += v->z;
+}
+
+void vec_3f_sub(Vec_3f* result, Vec_3f* v)
+{
+	result->x -= v->x;
+	result->y -= v->y;
+	result->z -= v->z;
+}
+
+void vec_3f_mul(Vec_3f* result, float32 f)
+{
+	result->x *= f;
+	result->y *= f;
+	result->z *= f;
+}
+
 
 void matrix_4x4_create_projection(Matrix_4x4* matrix, 
 	float32 fov_y, float32 aspect_ratio,

@@ -100,7 +100,7 @@ uint32 server_msg_state_write(
 	buffer[0] = (uint8)Server_Message::State;
 
 	memcpy(&buffer[1], &tick_number, 4);
-	memcpy(&buffer[5], &target_player_client_timestamp, 4);
+	memcpy(&buffer[5], &client_timestamp, 4);
 	uint32 bytes_written = 9;
 
 	// todo(jbr) just update this one part of the packet when sending to multiple clients
@@ -148,6 +148,12 @@ void server_msg_state_read(
 	memcpy(&local_player_nonvisual_state->speed, &buffer[bytes_read], sizeof(local_player_nonvisual_state->speed));
 	bytes_read += sizeof(local_player_nonvisual_state->speed);
 
+	bool32* players_present_end = &players_present[max_players];
+	for(bool32* iter = players_present; iter != players_present_end; ++iter)
+	{
+		*iter = 0;
+	}
+
 	uint8 num_players = buffer[bytes_read++];
 	for (uint8 i = 0; i < num_players; ++i)
 	{
@@ -159,9 +165,8 @@ void server_msg_state_read(
 		bytes_read += sizeof(player_visual_states[slot].y);
 		memcpy(&player_visual_states[slot].facing, &buffer[bytes_read], sizeof(player_visual_states[slot].facing));
 		bytes_read += sizeof(player_visual_states[slot].facing);
+		players_present[slot] = 1;
 	}
-
-	*num_players = i;
 }
 
 
