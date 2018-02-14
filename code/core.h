@@ -61,6 +61,9 @@ struct Vector3
 	float32 x, y, z;
 };
 Vector3 vector3_create(float32 x, float32 y, float32 z);
+void vector3_add(Vector3* result, Vector3* a, Vector3* b);
+void vector3_sub(Vector3* result, Vector3* a, Vector3* b);
+void vector3_mul(Vector3* result, Vector3* v, float32 f);
 
 
 

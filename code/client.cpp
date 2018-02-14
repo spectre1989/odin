@@ -331,38 +331,18 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		}
 
 
-		// Draw
+		// Create mvp matrix for each player
 		for (uint32 i = 0; i < num_players; ++i)
 		{
-			constexpr float32 size = 0.5f;
-			float32 x = remote_players[i].x;
-			float32 y = remote_players[i].y;
-
-			uint32 verts_start = i * 4;
-			vertices[verts_start].pos_x = x - size; // TL
-			vertices[verts_start].pos_y = y + size;
-			vertices[verts_start + 1].pos_x = x - size; // BL
-			vertices[verts_start + 1].pos_y = y - size;
-			vertices[verts_start + 2].pos_x = x + size; // BR
-			vertices[verts_start + 2].pos_y = y - size;
-			vertices[verts_start + 3].pos_x = x + size; // TR
-			vertices[verts_start + 3].pos_y = y + size;
+			player_mvp_matrices[i] = *projection_matrix;
 		}
-		for (uint32 i = num_players; i < c_max_clients; ++i)
-		{
-			uint32 verts_start = i * 4;
-			for (uint32 j = 0; j < 4; ++j)
-			{
-				vertices[verts_start + j].pos_x = vertices[verts_start + j].pos_y = 0.0f;
-			}
-		}
-		Graphics::update_and_draw(vertices, c_num_vertices, graphics_state);
+		Graphics::update_and_draw(graphics_state, player_mvp_matrices, num_players);
 
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick);
 	}
 
-	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, slot);
+	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, local_player_slot);
 	Net::socket_send(&sock, socket_buffer, leave_msg_size, &server_endpoint);
 	Net::socket_close(&sock);
 

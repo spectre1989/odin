@@ -77,32 +77,34 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 static void create_cube_face(Vertex* vertices, uint32 vertex_offset, 
 	uint16* indices, uint32 index_offset, 
 	Vector3* center,
-	uint32 right, float32 right_size, 
-	uint32 up, float32 up_size,
+	Vector3* right,
+	Vector3* up,
 	Vector3* colour)
 {
-	float32 half_right_size = right_size * 0.5f;
-	float32 half_up_size = up_size * 0.5f;
+	Vector3 half_right;
+	vector3_mul(&half_right, right, 0.5f);
+	Vector3 half_up;
+	vector3_mul(&half_up, up, 0.5f);
 
 	// top left
-	vertices[vertex_offset].pos = center;
-	vertices[vertex_offset].pos[right] -= half_right_size;
-	vertices[vertex_offset].pos[up] += half_up_size;
+	vertices[vertex_offset].pos = *center;
+	vector3_sub(&vertices[vertex_offset], half_right);
+	vector3_add(&vertices[vertex_offset], half_up);
 	vertices[vertex_offset].colour = colour;
 	// top right
-	vertices[vertex_offset + 1].pos = center;
-	vertices[vertex_offset + 1].pos[right] += half_right_size;
-	vertices[vertex_offset + 1].pos[up] += half_up_size;
+	vertices[vertex_offset + 1].pos = *center;
+	vector3_add(&vertices[vertex_offset + 1], half_right);
+	vector3_add(&vertices[vertex_offset + 1], half_up);
 	vertices[vertex_offset + 1].colour = colour;
 	// bottom right
-	vertices[vertex_offset + 2].pos = center;
-	vertices[vertex_offset + 2].pos[right] += half_right_size;
-	vertices[vertex_offset + 2].pos[up] -= half_up_size;
+	vertices[vertex_offset + 2].pos = *center;
+	vector3_add(&vertices[vertex_offset + 2], half_right);
+	vector3_sub(&vertices[vertex_offset + 2], half_up);
 	vertices[vertex_offset + 2].colour = colour;
 	// bottom left
-	vertices[vertex_offset + 3].pos = center;
-	vertices[vertex_offset + 3].pos[right] -= half_right_size;
-	vertices[vertex_offset + 3].pos[up] -= half_up_size;
+	vertices[vertex_offset + 3].pos = *center;
+	vector3_sub(&vertices[vertex_offset + 3], half_right);
+	vector3_sub(&vertices[vertex_offset + 3], half_up);
 	vertices[vertex_offset + 3].colour = colour;
 
 	indices[index_offset] = vertex_offset;
