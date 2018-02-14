@@ -30,11 +30,13 @@ struct State
 	VkDeviceMemory matrix_buffer_memory;
 	VkBuffer cube_vertex_buffer;
 	VkBuffer cube_index_buffer;
+	uint32 cube_num_indices;
 	VkRenderPass render_pass;
 	VkFramebuffer* swapchain_framebuffers;
 	VkExtent2D swapchain_extent;
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
+	VkDescriptorSet descriptor_set;
 };
 
 void init(	State* out_state, 

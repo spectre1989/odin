@@ -666,10 +666,9 @@ void init(	State* out_state,
 	descriptor_set_alloc_info.descriptorSetCount = 1;
 	descriptor_set_alloc_info.pSetLayouts = &descriptor_set_layout;
 
-	VkDescriptorSet descriptor_set;
 	result = vkAllocateDescriptorSets(out_state->device,
 									&descriptor_set_alloc_info,
-									&descriptor_set);
+									&out_state->descriptor_set);
 	assert(result == VK_SUCCESS);
 
 	VkDescriptorBufferInfo buffer_info = {};
@@ -679,7 +678,7 @@ void init(	State* out_state,
 
 	VkWriteDescriptorSet write_descriptor_set = {};
 	write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	write_descriptor_set.dstSet = descriptor_set;
+	write_descriptor_set.dstSet = out_state->descriptor_set;
 	write_descriptor_set.dstBinding = 0;
 	write_descriptor_set.dstArrayElement = 0;
 	write_descriptor_set.descriptorCount = 1;
@@ -790,6 +789,8 @@ void init(	State* out_state,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_cube_index_buffer_size);
 
 	copy_to_buffer(out_state->device, cube_index_buffer_memory, (void*)indices, c_cube_index_buffer_size);
+
+	out_state->cube_num_indices = c_num_indices;
 }
 
 void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matrices)
@@ -841,16 +842,16 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 								state->pipeline_layout,
 								first_set,
 								descriptor_set_count,
-								&descriptor_set,
+								&state->descriptor_set,
 								dynamic_offset_count,
 								&dynamic_offset);
 
-		vkCmdDrawIndexed(state->command_buffers[i], num_indices, 1, 0, 0, 0);
+		vkCmdDrawIndexed(state->command_buffers[i], state->cube_num_indices, 1, 0, 0, 0);
 	}
 
-	vkCmdEndRenderPass(state->command_buffers[i]);
+	vkCmdEndRenderPass(state->command_buffers[image_index]);
 
-	result = vkEndCommandBuffer(state->command_buffers[i]);
+	result = vkEndCommandBuffer(state->command_buffers[image_index]);
 	assert(result == VK_SUCCESS);
 
 
