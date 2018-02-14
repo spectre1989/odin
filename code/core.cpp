@@ -1,5 +1,6 @@
 #include "core.h"
 
+#include <math.h>
 
 
 Vec_3f vec_3f_create(float32 x, float32 y, float32 z)

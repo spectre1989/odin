@@ -149,7 +149,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
 	bool32* players_present = (bool32*)alloc_permanent(sizeof(bool32) * c_max_clients);
 	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
-	uint32 num_players = 0;
 
 	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
 	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
@@ -332,11 +331,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 
 		// Create mvp matrix for each player
-		for (uint32 i = 0; i < num_players; ++i)
+		bool32* players_present_end = &players_present[c_max_clients];
+		Matrix_4x4* player_mvp_matrix = &player_mvp_matrices[0];
+		for (bool32* players_present_iter = &players_present[0];
+			players_present_iter != players_present_end;
+			++players_present_iter)
 		{
-			player_mvp_matrices[i] = *projection_matrix;
+			if(*players_present_iter)
+			{
+				*player_mvp_matrix = *projection_matrix;
+				++player_mvp_matrix;
+			}
 		}
-		Graphics::update_and_draw(graphics_state, player_mvp_matrices, num_players);
+		uint32 num_matrices = (uint32)(player_mvp_matrix - player_mvp_matrices);
+		Graphics::update_and_draw(graphics_state, player_mvp_matrices, num_matrices);
 
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick);
