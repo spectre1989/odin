@@ -74,38 +74,38 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 	vkUnmapMemory(device, buffer_memory);
 }
 
-static void create_cube_face(Vertex* vertices, uint32 vertex_offset, 
+static void create_cube_face(Vertex* vertices, uint16 vertex_offset, 
 	uint16* indices, uint32 index_offset, 
-	Vector3* center,
-	Vector3* right,
-	Vector3* up,
-	Vector3* colour)
+	Vec_3f* center,
+	Vec_3f* right,
+	Vec_3f* up,
+	Vec_3f* colour)
 {
-	Vector3 half_right;
-	vector3_mul(&half_right, right, 0.5f);
-	Vector3 half_up;
-	vector3_mul(&half_up, up, 0.5f);
+	Vec_3f half_right = *right;
+	vec_3f_mul(&half_right, 0.5f);
+	Vec_3f half_up = *up;
+	vec_3f_mul(&half_up, 0.5f);
 
 	// top left
 	vertices[vertex_offset].pos = *center;
-	vector3_sub(&vertices[vertex_offset], half_right);
-	vector3_add(&vertices[vertex_offset], half_up);
-	vertices[vertex_offset].colour = colour;
+	vec_3f_sub(&vertices[vertex_offset].pos, &half_right);
+	vec_3f_add(&vertices[vertex_offset].pos, &half_up);
+	vertices[vertex_offset].colour = *colour;
 	// top right
 	vertices[vertex_offset + 1].pos = *center;
-	vector3_add(&vertices[vertex_offset + 1], half_right);
-	vector3_add(&vertices[vertex_offset + 1], half_up);
-	vertices[vertex_offset + 1].colour = colour;
+	vec_3f_add(&vertices[vertex_offset + 1].pos, &half_right);
+	vec_3f_add(&vertices[vertex_offset + 1].pos, &half_up);
+	vertices[vertex_offset + 1].colour = *colour;
 	// bottom right
 	vertices[vertex_offset + 2].pos = *center;
-	vector3_add(&vertices[vertex_offset + 2], half_right);
-	vector3_sub(&vertices[vertex_offset + 2], half_up);
-	vertices[vertex_offset + 2].colour = colour;
+	vec_3f_add(&vertices[vertex_offset + 2].pos, &half_right);
+	vec_3f_sub(&vertices[vertex_offset + 2].pos, &half_up);
+	vertices[vertex_offset + 2].colour = *colour;
 	// bottom left
 	vertices[vertex_offset + 3].pos = *center;
-	vector3_sub(&vertices[vertex_offset + 3], half_right);
-	vector3_sub(&vertices[vertex_offset + 3], half_up);
-	vertices[vertex_offset + 3].colour = colour;
+	vec_3f_sub(&vertices[vertex_offset + 3].pos, &half_right);
+	vec_3f_sub(&vertices[vertex_offset + 3].pos, &half_up);
+	vertices[vertex_offset + 3].colour = *colour;
 
 	indices[index_offset] = vertex_offset;
 	indices[index_offset + 1] = vertex_offset + 1;
@@ -177,7 +177,6 @@ void init(	State* out_state,
 	VkPhysicalDevice physical_device = 0;
 	VkSurfaceFormatKHR swapchain_surface_format = {};
 	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
-	VkExtent2D swapchain_extent = {};
 	uint32 swapchain_image_count = 0;
 	for( uint32 i = 0; i < physical_device_count; ++i )
 	{
@@ -253,11 +252,11 @@ void init(	State* out_state,
 					
 					if( surface_capabilities.currentExtent.width == 0xFFFFFFFF )
 					{
-						swapchain_extent = {window_width, window_height};
+						out_state->swapchain_extent = {window_width, window_height};
 					}
 					else
 					{
-						swapchain_extent = surface_capabilities.currentExtent;
+						out_state->swapchain_extent = surface_capabilities.currentExtent;
 					}
 
 					if( surface_capabilities.maxImageCount == 0 || surface_capabilities.maxImageCount >= 3 )
@@ -373,7 +372,7 @@ void init(	State* out_state,
 	swapchain_create_info.minImageCount = swapchain_image_count;
 	swapchain_create_info.imageFormat = swapchain_surface_format.format;
 	swapchain_create_info.imageColorSpace = swapchain_surface_format.colorSpace;
-	swapchain_create_info.imageExtent = swapchain_extent;
+	swapchain_create_info.imageExtent = out_state->swapchain_extent;
 	swapchain_create_info.imageArrayLayers = 1;
 	swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
@@ -505,14 +504,14 @@ void init(	State* out_state,
 	VkViewport viewport = {};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = (float)swapchain_extent.width;
-	viewport.height = (float)swapchain_extent.height;
+	viewport.width = (float)out_state->swapchain_extent.width;
+	viewport.height = (float)out_state->swapchain_extent.height;
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 
 	VkRect2D scissor = {};
 	scissor.offset = {0, 0};
-	scissor.extent = swapchain_extent;
+	scissor.extent = out_state->swapchain_extent;
 
 	VkPipelineViewportStateCreateInfo viewport_create_info = {};
 	viewport_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -562,8 +561,7 @@ void init(	State* out_state,
 	pipeline_layout_create_info.setLayoutCount = 1;
 	pipeline_layout_create_info.pSetLayouts = &descriptor_set_layout;
 
-	VkPipelineLayout pipeline_layout;
-	result = vkCreatePipelineLayout(out_state->device, &pipeline_layout_create_info, 0, &pipeline_layout);
+	result = vkCreatePipelineLayout(out_state->device, &pipeline_layout_create_info, 0, &out_state->pipeline_layout);
 	assert(result == VK_SUCCESS);
 
 	VkAttachmentDescription colour_attachment = {};
@@ -602,8 +600,7 @@ void init(	State* out_state,
 	render_pass_create_info.dependencyCount = 1;
 	render_pass_create_info.pDependencies = &dependency;
 
-	VkRenderPass render_pass;
-	result = vkCreateRenderPass(out_state->device, &render_pass_create_info, 0, &render_pass);
+	result = vkCreateRenderPass(out_state->device, &render_pass_create_info, 0, &out_state->render_pass);
 	assert(result == VK_SUCCESS);
 
 	VkGraphicsPipelineCreateInfo pipeline_create_info = {};
@@ -616,43 +613,32 @@ void init(	State* out_state,
 	pipeline_create_info.pRasterizationState = &rasteriser_create_info;
 	pipeline_create_info.pMultisampleState = &multisampling_create_info;
 	pipeline_create_info.pColorBlendState = &colour_blend_state_create_info;
-	pipeline_create_info.layout = pipeline_layout;
-	pipeline_create_info.renderPass = render_pass;
+	pipeline_create_info.layout = out_state->pipeline_layout;
+	pipeline_create_info.renderPass = out_state->render_pass;
 	pipeline_create_info.subpass = 0;
 	
-	VkPipeline graphics_pipeline;
-	result = vkCreateGraphicsPipelines(out_state->device, 0, 1, &pipeline_create_info, 0, &graphics_pipeline);
+	result = vkCreateGraphicsPipelines(out_state->device, 0, 1, &pipeline_create_info, 0, &out_state->graphics_pipeline);
 	assert(result == VK_SUCCESS);
 	
-	VkFramebuffer* swapchain_framebuffers = (VkFramebuffer*)alloc_temp(sizeof(VkFramebuffer) * swapchain_image_count);
+	out_state->swapchain_framebuffers = (VkFramebuffer*)alloc_permanent(sizeof(VkFramebuffer) * swapchain_image_count);
 	for(uint32 i = 0; i < swapchain_image_count; ++i)
 	{
 		VkFramebufferCreateInfo framebuffer_create_info = {};
 		framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebuffer_create_info.renderPass = render_pass;
+		framebuffer_create_info.renderPass = out_state->render_pass;
 		framebuffer_create_info.attachmentCount = 1;
 		framebuffer_create_info.pAttachments = &swapchain_image_views[i];
-		framebuffer_create_info.width = swapchain_extent.width;
-		framebuffer_create_info.height = swapchain_extent.height;
+		framebuffer_create_info.width = out_state->swapchain_extent.width;
+		framebuffer_create_info.height = out_state->swapchain_extent.height;
 		framebuffer_create_info.layers = 1;
 
-		result = vkCreateFramebuffer(out_state->device, &framebuffer_create_info, 0, &swapchain_framebuffers[i]);
+		result = vkCreateFramebuffer(out_state->device, &framebuffer_create_info, 0, &out_state->swapchain_framebuffers[i]);
 		assert(result == VK_SUCCESS);
 	}
 
 	const uint32 c_matrix_buffer_size = sizeof(Matrix_4x4) * max_objects;
-	buffer_create_info = {};
-	buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_create_info.pNext = NULL;
-	buffer_create_info.flags = 0;
-    buffer_create_info.size = c_matrix_buffer_size;
-    buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    buffer_create_info.queueFamilyIndexCount = 0;
-    buffer_create_info.pQueueFamilyIndices = 0;
-	
-	create_buffer(	&out_state->projection_matrix_buffer, 
-					&out_state->projection_matrix_buffer_memory,
+	create_buffer(	&out_state->matrix_buffer, 
+					&out_state->matrix_buffer_memory,
 					physical_device, 
 					out_state->device, 
 					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -687,7 +673,7 @@ void init(	State* out_state,
 	assert(result == VK_SUCCESS);
 
 	VkDescriptorBufferInfo buffer_info = {};
-	buffer_info.buffer = out_state->projection_matrix_buffer;
+	buffer_info.buffer = out_state->matrix_buffer;
 	buffer_info.offset = 0;
 	buffer_info.range = VK_WHOLE_SIZE;
 
@@ -753,32 +739,37 @@ void init(	State* out_state,
 
 	// front face
 	constexpr float32 c_size = 1.0f;
-	constexpr uint32 c_x_axis = 0;
-	constexpr uint32 c_y_axis = 1;
-	constexpr uint32 c_z_axis = 2;
-	Vector3 center = vector3_create(0.0f, 0.5f, 0.0f);
-	Vector3 colour = vector3_create(1.0f, 0.0f, 0.0f);
-	create_cube_face(vertices, 0, indices, 0, center, c_x_axis, c_size, c_z_axis, c_size, colour);
+	Vec_3f center = vec_3f_create(0.0f, 0.5f, 0.0f);
+	Vec_3f colour = vec_3f_create(1.0f, 0.0f, 0.0f);
+	Vec_3f right = vec_3f_create(c_size, 0.0f, 0.0f);
+	Vec_3f up = vec_3f_create(0.0f, 0.0f, c_size);
+	create_cube_face(vertices, 0, indices, 0, &center, &right, &up, &colour);
 	// back face
-	Vector3 center = vector3_create(0.0f, -0.5f, 0.0f);
-	Vector3 colour = vector3_create(0.0f, 1.0f, 0.0f);
-	create_cube_face(vertices, 4, indices, 6, center, c_x_axis, -c_size, c_z_axis, c_size, colour);
+	center = vec_3f_create(0.0f, -0.5f, 0.0f);
+	colour = vec_3f_create(0.0f, 1.0f, 0.0f);
+	right = vec_3f_create(-c_size, 0.0f, 0.0f);
+	create_cube_face(vertices, 4, indices, 6, &center, &right, &up, &colour);
 	// left face
-	Vector3 center = vector3_create(-0.5f, 0.0f, 0.0f);
-	Vector3 colour = vector3_create(0.0f, 0.0f, 1.0f);
-	create_cube_face(vertices, 8, indices, 12, center, c_y_axis, c_size, c_z_axis, c_size, colour);
+	center = vec_3f_create(-0.5f, 0.0f, 0.0f);
+	colour = vec_3f_create(0.0f, 0.0f, 1.0f);
+	right = vec_3f_create(0.0f, c_size, 0.0f);
+	create_cube_face(vertices, 8, indices, 12, &center, &right, &up, &colour);
 	// right face
-	Vector3 center = vector3_create(0.5f, 0.0f, 0.0f);
-	Vector3 colour = vector3_create(1.0f, 1.0f, 0.0f);
-	create_cube_face(vertices], 12, indices, 18, center, c_y_axis, -c_size, c_z_axis, c_size, colour);
+	center = vec_3f_create(0.5f, 0.0f, 0.0f);
+	colour = vec_3f_create(1.0f, 1.0f, 0.0f);
+	right = vec_3f_create(0.0f, -c_size, 0.0f);
+	create_cube_face(vertices, 12, indices, 18, &center, &right, &up, &colour);
 	// bottom face
-	Vector3 center = vector3_create(0.0f, 0.0f, -0.5f);
-	Vector3 colour = vector3_create(0.0f, 1.0f, 1.0f);
-	create_cube_face(vertices], 16, indices, 24, center, c_x_axis, c_size, c_y_axis, c_size, colour);
+	center = vec_3f_create(0.0f, 0.0f, -0.5f);
+	colour = vec_3f_create(0.0f, 1.0f, 1.0f);
+	right = vec_3f_create(c_size, 0.0f, 0.0f);
+	up = vec_3f_create(0.0f, c_size, 0.0f);
+	create_cube_face(vertices, 16, indices, 24, &center, &right, &up, &colour);
 	// top face
-	Vector3 center = vector3_create(0.0f, 0.0f, 0.5f);
-	Vector3 colour = vector3_create(1.0f, 0.0f, 1.0f);
-	create_cube_face(vertices], 20, indices, 30, center, c_x_axis, c_size, c_y_axis, -c_size, colour);
+	center = vec_3f_create(0.0f, 0.0f, 0.5f);
+	colour = vec_3f_create(1.0f, 0.0f, 1.0f);
+	right = vec_3f_create(-c_size, 0.0f, 0.0f);
+	create_cube_face(vertices, 20, indices, 30, &center, &right, &up, &colour);
 
 	// Create vertex buffer
 	constexpr uint32 c_cube_vertex_buffer_size = c_num_vertices * sizeof(Vertex);
@@ -791,7 +782,7 @@ void init(	State* out_state,
 	copy_to_buffer(out_state->device, cube_vertex_buffer_memory, (void*)vertices, c_cube_vertex_buffer_size);
 
 	// Create index buffer
-	const uint32 c_cube_index_buffer_size = num_indices * sizeof(indices[0]);
+	constexpr uint32 c_cube_index_buffer_size = c_num_indices * sizeof(indices[0]);
 
 	VkDeviceMemory cube_index_buffer_memory;
 	create_buffer(&out_state->cube_index_buffer, &cube_index_buffer_memory,
@@ -819,24 +810,24 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-    vkBeginCommandBuffer(state->command_buffers[i], &command_buffer_begin_info);
+    vkBeginCommandBuffer(state->command_buffers[image_index], &command_buffer_begin_info);
 
     VkClearValue clear_colour = {0.0f, 0.0f, 0.0f, 1.0f};
     VkRenderPassBeginInfo render_pass_begin_info = {};
 	render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	render_pass_begin_info.renderPass = render_pass;
-	render_pass_begin_info.framebuffer = swapchain_framebuffers[i];
+	render_pass_begin_info.renderPass = state->render_pass;
+	render_pass_begin_info.framebuffer = state->swapchain_framebuffers[image_index];
 	render_pass_begin_info.renderArea.offset = {0, 0};
-	render_pass_begin_info.renderArea.extent = swapchain_extent;
+	render_pass_begin_info.renderArea.extent = state->swapchain_extent;
 	render_pass_begin_info.clearValueCount = 1;
 	render_pass_begin_info.pClearValues = &clear_colour;
-	vkCmdBeginRenderPass(state->command_buffers[i], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+	vkCmdBeginRenderPass(state->command_buffers[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(state->command_buffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+	vkCmdBindPipeline(state->command_buffers[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, state->graphics_pipeline);
 
 	VkDeviceSize offset = 0;
-	vkCmdBindVertexBuffers(state->command_buffers[i], 0, 1, &state->cube_vertex_buffer, &offset);
-	vkCmdBindIndexBuffer(state->command_buffers[i], state->cube_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindVertexBuffers(state->command_buffers[image_index], 0, 1, &state->cube_vertex_buffer, &offset);
+	vkCmdBindIndexBuffer(state->command_buffers[image_index], state->cube_index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
 	for(uint32 i = 0; i < num_matrices; ++i)
 	{
@@ -844,10 +835,10 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 		uint32 first_set = 0;
 		uint32 descriptor_set_count = 1;
 		uint32 dynamic_offset_count = 1;
-		uint32 dynamic_offset = i * sizeof(matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
+		uint32 dynamic_offset = i * sizeof(model_matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
 		vkCmdBindDescriptorSets(state->command_buffers[i],
 								pipeline_bind_point,
-								pipeline_layout,
+								state->pipeline_layout,
 								first_set,
 								descriptor_set_count,
 								&descriptor_set,

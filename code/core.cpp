@@ -2,9 +2,9 @@
 
 
 
-Vector3 vector3_create(float32 x, float32 y, float32 z)
+Vec_3f vec_3f_create(float32 x, float32 y, float32 z)
 {
-	Vector3 v;
+	Vec_3f v;
 	v.x = x;
 	v.y = y;
 	v.z = z;

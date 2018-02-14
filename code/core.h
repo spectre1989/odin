@@ -56,14 +56,14 @@ constexpr uint64 gigabytes(uint32 gb)
 #endif
 
 
-struct Vector3
+struct Vec_3f
 {
 	float32 x, y, z;
 };
-Vector3 vector3_create(float32 x, float32 y, float32 z);
-void vector3_add(Vector3* result, Vector3* a, Vector3* b);
-void vector3_sub(Vector3* result, Vector3* a, Vector3* b);
-void vector3_mul(Vector3* result, Vector3* v, float32 f);
+Vec_3f vec_3f_create(float32 x, float32 y, float32 z);
+void vec_3f_add(Vec_3f* result, Vec_3f* v);
+void vec_3f_sub(Vec_3f* result, Vec_3f* v);
+void vec_3f_mul(Vec_3f* result, float32 f);
 
 
 

@@ -12,8 +12,8 @@ namespace Graphics
 
 struct Vertex
 {
-	Vector3 pos; // todo(jbr) update layout when setting up pipeline
-	Vector3 colour;
+	Vec_3f pos; // todo(jbr) update layout when setting up pipeline
+	Vec_3f colour;
 };
 
 struct State
@@ -24,11 +24,17 @@ struct State
 	VkSwapchainKHR swapchain;
 	VkSemaphore image_available_semaphore;
 	VkSemaphore render_finished_semaphore;
+	VkCommandPool* command_pools;
 	VkCommandBuffer* command_buffers;
 	VkBuffer matrix_buffer;
 	VkDeviceMemory matrix_buffer_memory;
 	VkBuffer cube_vertex_buffer;
 	VkBuffer cube_index_buffer;
+	VkRenderPass render_pass;
+	VkFramebuffer* swapchain_framebuffers;
+	VkExtent2D swapchain_extent;
+	VkPipelineLayout pipeline_layout;
+	VkPipeline graphics_pipeline;
 };
 
 void init(	State* out_state, 
