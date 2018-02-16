@@ -705,6 +705,8 @@ void init(	State* out_state,
 	// create a command pool per swapchain image, so they can be reset per swapchain image
 	out_state->command_pools = (VkCommandPool*)alloc_permanent(sizeof(VkCommandPool) * swapchain_image_count);
 	out_state->command_buffers = (VkCommandBuffer*)alloc_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
+	out_state->command_buffers_in_use = (bool32*)alloc_permanent(sizeof(bool32) * swapchain_image_count);
+	out_state->fences = (VkFence*)alloc_permanent(sizeof(VkFence) * swapchain_image_count);
 
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -714,6 +716,8 @@ void init(	State* out_state,
 	command_buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	command_buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	command_buffer_alloc_info.commandBufferCount = 1;
+	VkFenceCreateInfo fence_create_info = {};
+	fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 	for (uint32 i = 0; i < swapchain_image_count; ++i)
 	{
 		// create the pool
@@ -723,6 +727,11 @@ void init(	State* out_state,
 		// create the single command buffer that will get reset each frame
 		command_buffer_alloc_info.commandPool = out_state->command_pools[i];
 		result = vkAllocateCommandBuffers(out_state->device, &command_buffer_alloc_info, &out_state->command_buffers[i]);
+		assert(result == VK_SUCCESS);
+
+		out_state->command_buffers_in_use[i] = 0;
+
+		result = vkCreateFence(out_state->device, &fence_create_info, 0, &out_state->fences[i]);
 		assert(result == VK_SUCCESS);
 	}
 
@@ -814,9 +823,21 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
     VkResult result = vkAcquireNextImageKHR(state->device, state->swapchain, (uint64)-1, state->image_available_semaphore, 0, &image_index);
     assert(result == VK_SUCCESS);
 
-    // write command buffer
-    result = vkResetCommandPool(state->device, state->command_pools[image_index], 0);
+	// wait for it...
+	VkFence fence = state->fences[image_index];
+	if (state->command_buffers_in_use[image_index])
+	{
+		vkWaitForFences(state->device, 1, &fence, true, (uint64)-1);
+		vkResetFences(state->device, 1, &fence);
 
+		vkResetCommandPool(state->device, state->command_pools[image_index], 0);
+	}
+	else
+	{
+		state->command_buffers_in_use[image_index] = 1;
+	}
+
+    // write command buffer
     VkCommandBufferBeginInfo command_buffer_begin_info = {};
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -875,7 +896,7 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 	submit_info.pCommandBuffers = &state->command_buffers[image_index];
 	submit_info.signalSemaphoreCount = 1;
 	submit_info.pSignalSemaphores = &state->render_finished_semaphore;
-	result = vkQueueSubmit(state->graphics_queue, 1, &submit_info, 0);
+	result = vkQueueSubmit(state->graphics_queue, 1, &submit_info, fence);
 	assert(result == VK_SUCCESS);
 
 

@@ -26,6 +26,8 @@ struct State
 	VkSemaphore render_finished_semaphore;
 	VkCommandPool* command_pools;
 	VkCommandBuffer* command_buffers;
+	bool32* command_buffers_in_use;
+	VkFence* fences;
 	VkBuffer matrix_buffer;
 	VkDeviceMemory matrix_buffer_memory;
 	VkBuffer cube_vertex_buffer;
