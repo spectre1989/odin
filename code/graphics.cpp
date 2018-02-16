@@ -8,12 +8,17 @@ namespace Graphics
 
 // the return value indicates whether the calling layer should abort the vulkan call
 static VkBool32 VKAPI_PTR 
-vulkan_debug_callback(	VkDebugReportFlagsEXT /*flags*/,
+vulkan_debug_callback(	VkDebugReportFlagsEXT flags,
 						VkDebugReportObjectTypeEXT /*objType*/, uint64_t /*obj*/, 
 						size_t /*location*/, int32_t /*code*/, 
 						const char* layer_prefix, const char* msg, void* /*user_data*/) 
 {
 	log("[graphics::vulkan::%s] %s\n", layer_prefix, msg);
+	// todo(jbr) define out in release
+	if (flags & ~(VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT))
+	{
+		DebugBreak();
+	}
     return VK_FALSE;
 }
 
@@ -542,7 +547,7 @@ void init(	State* out_state,
 
 	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
     descriptor_set_layout_binding.binding = 0;
-    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     descriptor_set_layout_binding.descriptorCount = 1;
     descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 	descriptor_set_layout_binding.pImmutableSamplers = 0;
@@ -646,7 +651,7 @@ void init(	State* out_state,
 
 	// Create descriptor set to store the projection matrix
 	VkDescriptorPoolSize descriptor_pool_size = {};
-	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	descriptor_pool_size.descriptorCount = 1;
 
 	VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
@@ -682,7 +687,7 @@ void init(	State* out_state,
 	write_descriptor_set.dstBinding = 0;
 	write_descriptor_set.dstArrayElement = 0;
 	write_descriptor_set.descriptorCount = 1;
-	write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
 	write_descriptor_set.pImageInfo = 0;
 	write_descriptor_set.pBufferInfo = &buffer_info;
 	write_descriptor_set.pTexelBufferView = 0;
@@ -795,6 +800,11 @@ void init(	State* out_state,
 
 void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matrices)
 {
+	if (!num_matrices)
+	{
+		return;
+	}
+
 	// copy matrix uniform data to buffer
 	const uint32 c_matrix_data_size = num_matrices * sizeof(model_matrices[0]);
 	copy_to_buffer(state->device, state->matrix_buffer_memory, (void*)model_matrices, c_matrix_data_size);
@@ -837,7 +847,7 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 		uint32 descriptor_set_count = 1;
 		uint32 dynamic_offset_count = 1;
 		uint32 dynamic_offset = i * sizeof(model_matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
-		vkCmdBindDescriptorSets(state->command_buffers[i],
+		vkCmdBindDescriptorSets(state->command_buffers[image_index],
 								pipeline_bind_point,
 								state->pipeline_layout,
 								first_set,
@@ -846,7 +856,7 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 								dynamic_offset_count,
 								&dynamic_offset);
 
-		vkCmdDrawIndexed(state->command_buffers[i], state->cube_num_indices, 1, 0, 0, 0);
+		vkCmdDrawIndexed(state->command_buffers[image_index], state->cube_num_indices, 1, 0, 0, 0);
 	}
 
 	vkCmdEndRenderPass(state->command_buffers[image_index]);

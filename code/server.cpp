@@ -52,21 +52,22 @@ int main()
 		client_endpoints[i] = {};
 	}
 	float32* time_since_heard_from_clients = (float32*)alloc_permanent(sizeof(float32) * c_max_clients);
-	Player_State* client_objects = (Player_State*)alloc_permanent(sizeof(Player_State) * c_max_clients);
-	Player_Input* client_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
-	constexpr uint32 c_client_input_buffer_capacity = c_ticks_per_second;
-	Player_Input** client_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_client_input_buffer_capacity);
-	uint32** client_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_client_input_buffer_capacity);
-	for (uint32 i = 0; i < c_client_input_buffer_capacity; ++i)
+	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+	Player_Nonvisual_State* player_nonvisual_states = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State) * c_max_clients);
+	Player_Input* player_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
+	constexpr uint32 c_player_input_buffer_capacity = c_ticks_per_second;
+	Player_Input** player_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_player_input_buffer_capacity);
+	uint32** player_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_player_input_buffer_capacity);
+	for (uint32 i = 0; i < c_player_input_buffer_capacity; ++i)
 	{
-		client_input_buffer_inputs[i] = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
-		client_input_buffer_test[i] = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
+		player_input_buffer_inputs[i] = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
+		player_input_buffer_test[i] = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
 		for (uint32 j = 0; j < c_max_clients; ++j)
 		{
-			client_input_buffer_test[i][j] = 0;
+			player_input_buffer_test[i][j] = 0;
 		}
 	}
-	uint32 client_input_buffer_head = 0;
+	uint32 player_input_buffer_head = 0;
 	uint32* client_timestamps = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
 	uint32 tick_number = 0;
 	Timer tick_timer = timer_create();
@@ -110,8 +111,9 @@ int main()
 						{
 							client_endpoints[slot] = from;
 							time_since_heard_from_clients[slot] = 0.0f;
-							client_objects[slot] = {};
-							client_inputs[slot] = {};
+							player_visual_states[slot] = {};
+							player_nonvisual_states[slot] = {};
+							player_inputs[slot] = {};
 							client_timestamps[slot] = 0;
 						}
 					}
@@ -163,11 +165,11 @@ int main()
 						if (input_tick_number >= tick_number)
 						{
 							uint32 offset = input_tick_number - tick_number;
-							if (offset < c_client_input_buffer_capacity)
+							if (offset < c_player_input_buffer_capacity)
 							{
-								uint32 write_pos = (client_input_buffer_head + offset) % c_client_input_buffer_capacity;
-								client_input_buffer_inputs[write_pos][slot] = input;
-								client_input_buffer_test[write_pos][slot] = 1;
+								uint32 write_pos = (player_input_buffer_head + offset) % c_player_input_buffer_capacity;
+								player_input_buffer_inputs[write_pos][slot] = input;
+								player_input_buffer_test[write_pos][slot] = 1;
 							}
 							else
 							{
@@ -194,9 +196,9 @@ int main()
 		// apply any buffered inputs from clients
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
-			Player_Input* a = &client_inputs[i];
-			Player_Input* b = &client_input_buffer_inputs[client_input_buffer_head][i];
-			uint32 t1 = client_input_buffer_test[client_input_buffer_head][i];
+			Player_Input* a = &player_inputs[i];
+			Player_Input* b = &player_input_buffer_inputs[player_input_buffer_head][i];
+			uint32 t1 = player_input_buffer_test[player_input_buffer_head][i];
 			uint32 t0 = 1 - t1;
 
 			a->up = (a->up * t0) + (b->up * t1);
@@ -204,16 +206,16 @@ int main()
 			a->left = (a->left * t0) + (b->left * t1);
 			a->right = (a->right * t0) + (b->right * t1);
 
-			client_input_buffer_test[client_input_buffer_head][i] = 0; // clear for next time
+			player_input_buffer_test[player_input_buffer_head][i] = 0; // clear for next time
 		}
-		client_input_buffer_head = (client_input_buffer_head + 1) % c_client_input_buffer_capacity;
+		player_input_buffer_head = (player_input_buffer_head + 1) % c_player_input_buffer_capacity;
 
 		// update players
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
-				tick_player(&client_objects[i], &client_inputs[i]);
+				tick_player(&player_visual_states[i], &player_nonvisual_states[i], &player_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
@@ -233,8 +235,7 @@ int main()
 		{
 			if (client_endpoints[i].address)
 			{
-				uint32 target_player = i;
-				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, client_endpoints, client_objects, c_max_clients, tick_number, target_player, client_timestamps[target_player]);
+				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, tick_number, client_timestamps[i], &player_nonvisual_states[i], client_endpoints, player_visual_states, c_max_clients);
 
 				if (!Net::socket_send(&sock, socket_buffer, state_msg_size, &client_endpoints[i]))
 				{

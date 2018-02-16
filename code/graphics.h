@@ -12,7 +12,7 @@ namespace Graphics
 
 struct Vertex
 {
-	Vec_3f pos; // todo(jbr) update layout when setting up pipeline
+	Vec_3f pos;
 	Vec_3f colour;
 };
 
