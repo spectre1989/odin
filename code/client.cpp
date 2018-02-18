@@ -332,14 +332,19 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		// Create mvp matrix for each player
 		bool32* players_present_end = &players_present[c_max_clients];
+		Player_Visual_State* player_visual_state = &player_visual_states[0];
 		Matrix_4x4* player_mvp_matrix = &player_mvp_matrices[0];
+		Matrix_4x4 temp_model_matrix;
 		for (bool32* players_present_iter = &players_present[0];
 			players_present_iter != players_present_end;
-			++players_present_iter)
+			++players_present_iter, ++player_visual_state)
 		{
 			if(*players_present_iter)
 			{
-				*player_mvp_matrix = *projection_matrix;
+				static float32 z = 0.0f;
+				matrix_4x4_translation(&temp_model_matrix, player_visual_state->x, player_visual_state->y, z); 
+				matrix_4x4_mul(player_mvp_matrix, projection_matrix, &temp_model_matrix);
+				
 				++player_mvp_matrix;
 			}
 		}

@@ -69,6 +69,11 @@ void vec_3f_mul(Vec_3f* result, float32 f);
 
 struct Matrix_4x4
 {
+	// m11 m12 m13 m14
+	// m21 m22 m23 m24
+	// m31 m32 m33 m34
+	// m41 m42 m43 m44
+
 	// column major
 	float32 m11, m21, m31, m41,
 			m12, m22, m32, m42,
@@ -76,6 +81,8 @@ struct Matrix_4x4
 			m14, m24, m34, m44;
 };
 void matrix_4x4_create_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
+void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z);
+void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b);
 
 
 
