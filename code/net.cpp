@@ -162,7 +162,7 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 	if (bytes_received == SOCKET_ERROR)
 	{
 		int error = WSAGetLastError();
-		if (error != WSAEWOULDBLOCK)
+		if (error != WSAEWOULDBLOCK && error != WSAECONNRESET)
 		{
 			log("[net] recvfrom() returned SOCKET_ERROR, WSAGetLastError() %d\n", error);
 		}

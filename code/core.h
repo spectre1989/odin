@@ -82,6 +82,7 @@ struct Matrix_4x4
 };
 void matrix_4x4_create_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
 void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z);
+void matrix_4x4_rotation_z(Matrix_4x4* matrix, float32 r);
 void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b);
 
 
