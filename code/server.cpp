@@ -112,7 +112,6 @@ int main()
 							client_endpoints[slot] = from;
 							time_since_heard_from_clients[slot] = 0.0f;
 							player_visual_states[slot] = {};
-							player_visual_states[slot].facing = c_pi;
 							player_nonvisual_states[slot] = {};
 							player_inputs[slot] = {};
 							client_timestamps[slot] = 0;

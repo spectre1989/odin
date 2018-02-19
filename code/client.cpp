@@ -163,7 +163,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
 	constexpr float32 c_aspect_ratio = c_window_width / (float32)c_window_height;
 	constexpr float32 c_near_plane = 1.0f;
-	constexpr float32 c_far_plane = 10.0f;
+	constexpr float32 c_far_plane = 100.0f;
 	Matrix_4x4* projection_matrix = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4));
 	matrix_4x4_create_projection(projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
 
@@ -337,15 +337,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		Matrix_4x4 temp_rotation_matrix;
 		Matrix_4x4 temp_translation_matrix;
 		Matrix_4x4 temp_model_matrix;
-		static float32 r = 0.0f;
-		r += 0.01f;
 		for (bool32* players_present_iter = &players_present[0];
 			players_present_iter != players_present_end;
 			++players_present_iter, ++player_visual_state)
 		{
 			if(*players_present_iter)
 			{
-				matrix_4x4_rotation_z(&temp_rotation_matrix, r);
+				matrix_4x4_rotation_z(&temp_rotation_matrix, -player_visual_state->facing);
 				static float32 z = 0.0f;
 				matrix_4x4_translation(&temp_translation_matrix, player_visual_state->x, player_visual_state->y, z); 
 				matrix_4x4_mul(&temp_model_matrix, &temp_translation_matrix, &temp_rotation_matrix);
