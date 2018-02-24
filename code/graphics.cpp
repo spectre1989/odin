@@ -752,31 +752,31 @@ void init(	State* out_state,
 
 	// front face
 	constexpr float32 c_size = 1.0f;
-	Vec_3f center = vec_3f_create(0.0f, 0.5f, 0.0f);
+	Vec_3f center = vec_3f_create(0.0f, -0.5f, 0.0f);
 	Vec_3f colour = vec_3f_create(1.0f, 0.0f, 0.0f);
 	Vec_3f right = vec_3f_create(c_size, 0.0f, 0.0f);
 	Vec_3f up = vec_3f_create(0.0f, 0.0f, c_size);
 	create_cube_face(vertices, 0, indices, 0, &center, &right, &up, &colour);
 	// back face
-	center = vec_3f_create(0.0f, -0.5f, 0.0f);
+	center = vec_3f_create(0.0f, 0.5f, 0.0f);
 	colour = vec_3f_create(0.0f, 1.0f, 0.0f);
 	right = vec_3f_create(-c_size, 0.0f, 0.0f);
 	create_cube_face(vertices, 4, indices, 6, &center, &right, &up, &colour);
 	// left face
 	center = vec_3f_create(-0.5f, 0.0f, 0.0f);
 	colour = vec_3f_create(0.0f, 0.0f, 1.0f);
-	right = vec_3f_create(0.0f, c_size, 0.0f);
+	right = vec_3f_create(0.0f, -c_size, 0.0f);
 	create_cube_face(vertices, 8, indices, 12, &center, &right, &up, &colour);
 	// right face
 	center = vec_3f_create(0.5f, 0.0f, 0.0f);
 	colour = vec_3f_create(1.0f, 1.0f, 0.0f);
-	right = vec_3f_create(0.0f, -c_size, 0.0f);
+	right = vec_3f_create(0.0f, c_size, 0.0f);
 	create_cube_face(vertices, 12, indices, 18, &center, &right, &up, &colour);
 	// bottom face
 	center = vec_3f_create(0.0f, 0.0f, -0.5f);
 	colour = vec_3f_create(0.0f, 1.0f, 1.0f);
 	right = vec_3f_create(c_size, 0.0f, 0.0f);
-	up = vec_3f_create(0.0f, c_size, 0.0f);
+	up = vec_3f_create(0.0f, -c_size, 0.0f);
 	create_cube_face(vertices, 16, indices, 24, &center, &right, &up, &colour);
 	// top face
 	center = vec_3f_create(0.0f, 0.0f, 0.5f);

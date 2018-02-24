@@ -343,7 +343,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		{
 			if(*players_present_iter)
 			{
-				matrix_4x4_rotation_z(&temp_rotation_matrix, -player_visual_state->facing);
+				matrix_4x4_rotation_z(&temp_rotation_matrix, player_visual_state->facing);
 				static float32 z = 0.0f;
 				matrix_4x4_translation(&temp_translation_matrix, player_visual_state->x, player_visual_state->y, z); 
 				matrix_4x4_mul(&temp_model_matrix, &temp_translation_matrix, &temp_rotation_matrix);
