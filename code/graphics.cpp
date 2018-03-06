@@ -752,7 +752,7 @@ void init(	State* out_state,
 
 	// front face
 	constexpr float32 c_size = 1.0f;
-	Vec_3f center = vec_3f_create(0.0f, -0.5f, 0.0f);
+	Vec_3f center = vec_3f_create(0.0f, -0.5f, 0.0f); // todo(jbr) maybe lose all _create suffixes, so just vec_3f()? a bit like a constructor
 	Vec_3f colour = vec_3f_create(1.0f, 0.0f, 0.0f);
 	Vec_3f right = vec_3f_create(c_size, 0.0f, 0.0f);
 	Vec_3f up = vec_3f_create(0.0f, 0.0f, c_size);
@@ -805,6 +805,50 @@ void init(	State* out_state,
 	copy_to_buffer(out_state->device, cube_index_buffer_memory, (void*)indices, c_cube_index_buffer_size);
 
 	out_state->cube_num_indices = c_num_indices;
+
+	// Create scenery, just need something to give a sense of movement
+	constexpr uint32 c_floor_tiles_count = 5;
+	constexpr float32 c_floor_tile_size = 1.0f;
+	constexpr float32 c_floor_tile_spacing = 1.0f;
+	constexpr uint32 c_num_scenery_vertices = c_floor_tiles_count * 4;
+	constexpr uint32 c_num_scenery_indices = c_floor_tiles_count * 6;
+	vertices = (Vertex*)alloc_temp(sizeof(Vertex) * c_num_scenery_vertices);
+	indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_scenery_indices);
+	up = vec_3f_create(0.0f, 0.0f, 1.0f);
+	right = vec_3f_create(1.0f, 0.0f, 0.0f);
+	colour = vec_3f_create(1.0f, 1.0f, 1.0f);
+	uint16 vertex_offset = 0;
+	uint32 index_offset = 0;
+	for (uint32 x = 0; x < c_floor_tiles_count; ++x)
+	{
+		for (uint32 y = 0; y < c_floor_tiles_count; ++y)
+		{
+			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
+			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
+			center.z = -0.6f;
+			create_cube_face(vertices, vertex_offset, indices, index_offset, &center, &right, &up, &colour);
+			vertex_offset += 4;
+			index_offset += 6;
+		}
+	}
+	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
+	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(indices[0]);
+	VkBuffer scenery_vertex_buffer;
+	VkBuffer scenery_index_buffer;
+	VkDeviceMemory scenery_vertex_buffer_memory;
+	VkDeviceMemory scenery_index_buffer_memory;
+
+	create_buffer(&scenery_vertex_buffer, &scenery_vertex_buffer_memory, 
+		physical_device, out_state->device, 
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_scenery_vertex_buffer_size);
+
+	copy_to_buffer(out_state->device, scenery_vertex_buffer_memory, (void*)vertices, c_scenery_vertex_buffer_size);
+
+	create_buffer(&scenery_index_buffer, &scenery_index_buffer_memory,
+		physical_device, out_state->device,
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_scenery_index_buffer_size);
+
+	copy_to_buffer(out_state->device, scenery_index_buffer_memory, (void*)indices, c_scenery_index_buffer_size);
 }
 
 void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matrices)
