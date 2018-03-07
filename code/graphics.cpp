@@ -833,34 +833,34 @@ void init(	State* out_state,
 	}
 	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
 	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(indices[0]);
-	VkBuffer scenery_vertex_buffer;
-	VkBuffer scenery_index_buffer;
 	VkDeviceMemory scenery_vertex_buffer_memory;
 	VkDeviceMemory scenery_index_buffer_memory;
 
-	create_buffer(&scenery_vertex_buffer, &scenery_vertex_buffer_memory, 
+	create_buffer(&out_state->scenery_vertex_buffer, &scenery_vertex_buffer_memory, 
 		physical_device, out_state->device, 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_scenery_vertex_buffer_size);
 
 	copy_to_buffer(out_state->device, scenery_vertex_buffer_memory, (void*)vertices, c_scenery_vertex_buffer_size);
 
-	create_buffer(&scenery_index_buffer, &scenery_index_buffer_memory,
+	create_buffer(&out_state->scenery_index_buffer, &scenery_index_buffer_memory,
 		physical_device, out_state->device,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_scenery_index_buffer_size);
 
 	copy_to_buffer(out_state->device, scenery_index_buffer_memory, (void*)indices, c_scenery_index_buffer_size);
+
+	out_state->scenery_num_indices = c_num_scenery_indices;
 }
 
-void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matrices)
+void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 {
-	if (!num_matrices)
+	if (!num_players)
 	{
 		return;
 	}
 
 	// copy matrix uniform data to buffer
-	const uint32 c_matrix_data_size = num_matrices * sizeof(model_matrices[0]);
-	copy_to_buffer(state->device, state->matrix_buffer_memory, (void*)model_matrices, c_matrix_data_size);
+	const uint32 c_matrix_data_size = (num_players + 1) * sizeof(matrices[0]);
+	copy_to_buffer(state->device, state->matrix_buffer_memory, (void*)matrices, c_matrix_data_size);
 
 	// get the swapchain image to use
 	uint32 image_index;
@@ -901,17 +901,37 @@ void update_and_draw(State* state, Matrix_4x4* model_matrices, uint32 num_matric
 
 	vkCmdBindPipeline(state->command_buffers[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, state->graphics_pipeline);
 
+	// draw scenery
+	// todo(jbr) this is all just awful, use push constants or something
 	VkDeviceSize offset = 0;
+	vkCmdBindVertexBuffers(state->command_buffers[image_index], 0, 1, &state->scenery_vertex_buffer, &offset);
+	vkCmdBindIndexBuffer(state->command_buffers[image_index], state->scenery_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+	VkPipelineBindPoint pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	uint32 first_set = 0;
+	uint32 descriptor_set_count = 1;
+	uint32 dynamic_offset_count = 1;
+	uint32 dynamic_offset = 0;
+	vkCmdBindDescriptorSets(state->command_buffers[image_index],
+							pipeline_bind_point,
+							state->pipeline_layout,
+							first_set,
+							descriptor_set_count,
+							&state->descriptor_set,
+							dynamic_offset_count,
+							&dynamic_offset);
+	vkCmdDrawIndexed(state->command_buffers[image_index], state->scenery_num_indices, 1, 0, 0, 0);
+
+	// draw players
 	vkCmdBindVertexBuffers(state->command_buffers[image_index], 0, 1, &state->cube_vertex_buffer, &offset);
 	vkCmdBindIndexBuffer(state->command_buffers[image_index], state->cube_index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-	for(uint32 i = 0; i < num_matrices; ++i)
+	for(uint32 i = 0; i < num_players; ++i)
 	{
-		VkPipelineBindPoint pipeline_bind_point = VK_PIPELINE_BIND_POINT_GRAPHICS;
-		uint32 first_set = 0;
-		uint32 descriptor_set_count = 1;
-		uint32 dynamic_offset_count = 1;
-		uint32 dynamic_offset = i * sizeof(model_matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
+		
+		first_set = 0;
+		descriptor_set_count = 1;
+		dynamic_offset_count = 1;
+		dynamic_offset = (i + 1) * sizeof(matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
 		vkCmdBindDescriptorSets(state->command_buffers[image_index],
 								pipeline_bind_point,
 								state->pipeline_layout,

@@ -33,6 +33,9 @@ struct State
 	VkBuffer cube_vertex_buffer;
 	VkBuffer cube_index_buffer;
 	uint32 cube_num_indices;
+	VkBuffer scenery_vertex_buffer;
+	VkBuffer scenery_index_buffer;
+	uint32 scenery_num_indices;
 	VkRenderPass render_pass;
 	VkFramebuffer* swapchain_framebuffers;
 	VkExtent2D swapchain_extent;
@@ -45,7 +48,7 @@ void init(	State* out_state,
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
 			uint32 max_objects);
-void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_matrices);
+void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players);
 
 
 } // namespace Graphics
