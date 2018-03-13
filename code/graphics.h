@@ -30,6 +30,7 @@ struct State
 	VkFence* fences;
 	VkBuffer matrix_buffer;
 	VkDeviceMemory matrix_buffer_memory;
+	uint32 num_matrix_buffer_padding_bytes;
 	VkBuffer cube_vertex_buffer;
 	VkBuffer cube_index_buffer;
 	uint32 cube_num_indices;
@@ -47,7 +48,7 @@ struct State
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			uint32 max_objects);
+			uint32 max_players);
 void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players);
 
 

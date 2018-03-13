@@ -123,7 +123,7 @@ static void create_cube_face(Vertex* vertices, uint16 vertex_offset,
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			uint32 max_objects)
+			uint32 max_players)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -179,7 +179,8 @@ void init(	State* out_state,
 	result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
 	assert( result == VK_SUCCESS );
 
-	VkPhysicalDevice physical_device = 0;
+	VkPhysicalDevice chosen_physical_device = 0;
+	VkPhysicalDeviceProperties chosen_physical_device_properties = {};
 	VkSurfaceFormatKHR swapchain_surface_format = {};
 	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
 	uint32 swapchain_image_count = 0;
@@ -206,26 +207,27 @@ void init(	State* out_state,
 			{
 				if( strcmp( device_extensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME ) == 0 )
 				{
-					physical_device = physical_devices[i];
+					chosen_physical_device = physical_devices[i];
+					chosen_physical_device_properties = device_properties;
 					break;
 				}
 			}
 
-			if( physical_device )
+			if( chosen_physical_device )
 			{
 				uint32 format_count;
 				uint32 present_mode_count;
 
-				result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, 0 );
+				result = vkGetPhysicalDeviceSurfaceFormatsKHR( chosen_physical_device, surface, &format_count, 0 );
 				assert( result == VK_SUCCESS );
 
-				result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, 0 );
+				result = vkGetPhysicalDeviceSurfacePresentModesKHR( chosen_physical_device, surface, &present_mode_count, 0 );
 				assert( result == VK_SUCCESS );
 
 				if( format_count && present_mode_count ) 
 				{
 					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)alloc_temp(sizeof(VkSurfaceFormatKHR) * format_count);
-				    result = vkGetPhysicalDeviceSurfaceFormatsKHR( physical_device, surface, &format_count, surface_formats );
+				    result = vkGetPhysicalDeviceSurfaceFormatsKHR( chosen_physical_device, surface, &format_count, surface_formats );
 				    assert( result == VK_SUCCESS );
 
 				    if( format_count == 1 && surface_formats[0].format == VK_FORMAT_UNDEFINED )
@@ -240,7 +242,7 @@ void init(	State* out_state,
 				    }
 
 					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)alloc_temp(sizeof(VkPresentModeKHR) * present_mode_count);
-				    result = vkGetPhysicalDeviceSurfacePresentModesKHR( physical_device, surface, &present_mode_count, present_modes );
+				    result = vkGetPhysicalDeviceSurfacePresentModesKHR( chosen_physical_device, surface, &present_mode_count, present_modes );
 				    assert( result == VK_SUCCESS );
 
 				    for( uint32 j = 0; j < present_mode_count; ++j )
@@ -252,7 +254,7 @@ void init(	State* out_state,
 				    }
 
 					VkSurfaceCapabilitiesKHR surface_capabilities = {};
-					result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( physical_device, surface, &surface_capabilities );
+					result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( chosen_physical_device, surface, &surface_capabilities );
 					assert( result == VK_SUCCESS );
 					
 					if( surface_capabilities.currentExtent.width == 0xFFFFFFFF )
@@ -276,26 +278,26 @@ void init(	State* out_state,
 				else
 				{
 					// no formats, can't use this device
-					physical_device = 0;
+					chosen_physical_device = 0;
 				}
 			}
 		}
 
-		if( physical_device )
+		if( chosen_physical_device )
 		{
 			break;
 		}
 	}
 
-	assert( physical_device );
+	assert( chosen_physical_device );
 
 	uint32 queue_family_count;
-	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, 0 );
+	vkGetPhysicalDeviceQueueFamilyProperties( chosen_physical_device, &queue_family_count, 0 );
 	assert( queue_family_count > 0 );
 
 	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)alloc_temp(sizeof(VkQueueFamilyProperties) * queue_family_count);
 
-	vkGetPhysicalDeviceQueueFamilyProperties( physical_device, &queue_family_count, queue_families );
+	vkGetPhysicalDeviceQueueFamilyProperties( chosen_physical_device, &queue_family_count, queue_families );
 
 	uint32 graphics_queue_family_index = uint32( -1 );
 	uint32 present_queue_family_index = uint32( -1 );
@@ -309,7 +311,7 @@ void init(	State* out_state,
 			}
 
 			VkBool32 present_support = false;
-			result = vkGetPhysicalDeviceSurfaceSupportKHR( physical_device, i, surface, &present_support );
+			result = vkGetPhysicalDeviceSurfaceSupportKHR( chosen_physical_device, i, surface, &present_support );
 			assert( result == VK_SUCCESS );
 			if( present_support )
 			{
@@ -357,7 +359,7 @@ void init(	State* out_state,
 	device_create_info.enabledExtensionCount = sizeof( enabled_device_extension_names ) / sizeof( enabled_device_extension_names[0] );
 	device_create_info.ppEnabledExtensionNames = enabled_device_extension_names;
 
-	result = vkCreateDevice( physical_device, &device_create_info, 0, &out_state->device );
+	result = vkCreateDevice( chosen_physical_device, &device_create_info, 0, &out_state->device );
 	assert( result == VK_SUCCESS );
 	
 	vkGetDeviceQueue( out_state->device, graphics_queue_family_index, 0, &out_state->graphics_queue );
@@ -641,10 +643,11 @@ void init(	State* out_state,
 		assert(result == VK_SUCCESS);
 	}
 
-	const uint32 c_matrix_buffer_size = sizeof(Matrix_4x4) * max_objects;
+	out_state->num_matrix_buffer_padding_bytes = (uint32)((((sizeof(Matrix_4x4) / chosen_physical_device_properties.limits.minUniformBufferOffsetAlignment) + 1) * chosen_physical_device_properties.limits.minUniformBufferOffsetAlignment) - sizeof(Matrix_4x4));
+	const uint32 c_matrix_buffer_size = (sizeof(Matrix_4x4) + out_state->num_matrix_buffer_padding_bytes) * (max_players + 1);
 	create_buffer(	&out_state->matrix_buffer, 
 					&out_state->matrix_buffer_memory,
-					physical_device, 
+					chosen_physical_device, 
 					out_state->device, 
 					VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
 					c_matrix_buffer_size);
@@ -789,7 +792,7 @@ void init(	State* out_state,
 
 	VkDeviceMemory cube_vertex_buffer_memory;
 	create_buffer(&out_state->cube_vertex_buffer, &cube_vertex_buffer_memory, 
-		physical_device, out_state->device, 
+		chosen_physical_device, out_state->device, 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_cube_vertex_buffer_size);
 
 	copy_to_buffer(out_state->device, cube_vertex_buffer_memory, (void*)vertices, c_cube_vertex_buffer_size);
@@ -799,7 +802,7 @@ void init(	State* out_state,
 
 	VkDeviceMemory cube_index_buffer_memory;
 	create_buffer(&out_state->cube_index_buffer, &cube_index_buffer_memory,
-		physical_device, out_state->device,
+		chosen_physical_device, out_state->device,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_cube_index_buffer_size);
 
 	copy_to_buffer(out_state->device, cube_index_buffer_memory, (void*)indices, c_cube_index_buffer_size);
@@ -837,13 +840,13 @@ void init(	State* out_state,
 	VkDeviceMemory scenery_index_buffer_memory;
 
 	create_buffer(&out_state->scenery_vertex_buffer, &scenery_vertex_buffer_memory, 
-		physical_device, out_state->device, 
+		chosen_physical_device, out_state->device, 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_scenery_vertex_buffer_size);
 
 	copy_to_buffer(out_state->device, scenery_vertex_buffer_memory, (void*)vertices, c_scenery_vertex_buffer_size);
 
 	create_buffer(&out_state->scenery_index_buffer, &scenery_index_buffer_memory,
-		physical_device, out_state->device,
+		chosen_physical_device, out_state->device,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_scenery_index_buffer_size);
 
 	copy_to_buffer(out_state->device, scenery_index_buffer_memory, (void*)indices, c_scenery_index_buffer_size);
@@ -860,7 +863,13 @@ void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 
 	// copy matrix uniform data to buffer
 	const uint32 c_matrix_data_size = (num_players + 1) * sizeof(matrices[0]);
-	copy_to_buffer(state->device, state->matrix_buffer_memory, (void*)matrices, c_matrix_data_size);
+	uint8* dst;
+	vkMapMemory(state->device, state->matrix_buffer_memory, 0, c_matrix_data_size, 0, (void**)&dst);
+	for (uint32 i = 0; i < (num_players + 1); ++i)
+	{
+		memcpy(&dst[i * (sizeof(matrices[0]) + state->num_matrix_buffer_padding_bytes)], &matrices[i], sizeof(matrices[0]));
+	}
+	vkUnmapMemory(state->device, state->matrix_buffer_memory);
 
 	// get the swapchain image to use
 	uint32 image_index;
@@ -927,11 +936,10 @@ void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 
 	for(uint32 i = 0; i < num_players; ++i)
 	{
-		
 		first_set = 0;
 		descriptor_set_count = 1;
 		dynamic_offset_count = 1;
-		dynamic_offset = (i + 1) * sizeof(matrices[0]); // todo(jbr) alignment (VkPhysicalDeviceLimits::minUniformBufferOffsetAlignment)
+		dynamic_offset = (i + 1) * (sizeof(matrices[0]) + state->num_matrix_buffer_padding_bytes);
 		vkCmdBindDescriptorSets(state->command_buffers[image_index],
 								pipeline_bind_point,
 								state->pipeline_layout,
