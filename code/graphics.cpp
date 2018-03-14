@@ -749,9 +749,11 @@ void init(	State* out_state,
 
 	// Create cube mesh
 	constexpr uint32 c_num_vertices = 24;
-	Vertex* vertices = (Vertex*)alloc_temp(sizeof(Vertex) * c_num_vertices);
 	constexpr uint32 c_num_indices = 36;
-	uint16* indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_indices);
+	constexpr uint32 c_cube_vertex_buffer_size = c_num_vertices * sizeof(Vertex);
+	constexpr uint32 c_cube_index_buffer_size = c_num_indices * sizeof(uint16);
+	Vertex* vertices = (Vertex*)alloc_temp(c_cube_vertex_buffer_size);
+	uint16* indices = (uint16*)alloc_temp(c_cube_index_buffer_size);
 
 	// front face
 	constexpr float32 c_size = 1.0f;
@@ -788,8 +790,6 @@ void init(	State* out_state,
 	create_cube_face(vertices, 20, indices, 30, &center, &right, &up, &colour);
 
 	// Create vertex buffer
-	constexpr uint32 c_cube_vertex_buffer_size = c_num_vertices * sizeof(Vertex);
-
 	VkDeviceMemory cube_vertex_buffer_memory;
 	create_buffer(&out_state->cube_vertex_buffer, &cube_vertex_buffer_memory, 
 		chosen_physical_device, out_state->device, 
@@ -798,8 +798,6 @@ void init(	State* out_state,
 	copy_to_buffer(out_state->device, cube_vertex_buffer_memory, (void*)vertices, c_cube_vertex_buffer_size);
 
 	// Create index buffer
-	constexpr uint32 c_cube_index_buffer_size = c_num_indices * sizeof(indices[0]);
-
 	VkDeviceMemory cube_index_buffer_memory;
 	create_buffer(&out_state->cube_index_buffer, &cube_index_buffer_memory,
 		chosen_physical_device, out_state->device,
@@ -810,14 +808,17 @@ void init(	State* out_state,
 	out_state->cube_num_indices = c_num_indices;
 
 	// Create scenery, just need something to give a sense of movement
-	constexpr uint32 c_floor_tiles_count = 5;
+	constexpr uint32 c_floor_tiles_count = 50;
+	constexpr uint32 c_floor_tiles_total = c_floor_tiles_count * c_floor_tiles_count;
 	constexpr float32 c_floor_tile_size = 1.0f;
 	constexpr float32 c_floor_tile_spacing = 1.0f;
-	constexpr uint32 c_num_scenery_vertices = c_floor_tiles_count * 4;
-	constexpr uint32 c_num_scenery_indices = c_floor_tiles_count * 6;
-	vertices = (Vertex*)alloc_temp(sizeof(Vertex) * c_num_scenery_vertices);
-	indices = (uint16*)alloc_temp(sizeof(uint16) * c_num_scenery_indices);
-	up = vec_3f_create(0.0f, 0.0f, 1.0f);
+	constexpr uint32 c_num_scenery_vertices = c_floor_tiles_total * 4;
+	constexpr uint32 c_num_scenery_indices = c_floor_tiles_total * 6;
+	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
+	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(uint16);
+	vertices = (Vertex*)alloc_temp(c_scenery_vertex_buffer_size);
+	indices = (uint16*)alloc_temp(c_scenery_index_buffer_size);
+	up = vec_3f_create(0.0f, 1.0f, 0.0f);
 	right = vec_3f_create(1.0f, 0.0f, 0.0f);
 	colour = vec_3f_create(1.0f, 1.0f, 1.0f);
 	uint16 vertex_offset = 0;
@@ -828,23 +829,22 @@ void init(	State* out_state,
 		{
 			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
 			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
-			center.z = -0.6f;
+			center.z = -2.0f;
 			create_cube_face(vertices, vertex_offset, indices, index_offset, &center, &right, &up, &colour);
 			vertex_offset += 4;
 			index_offset += 6;
 		}
 	}
-	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
-	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(indices[0]);
+	
 	VkDeviceMemory scenery_vertex_buffer_memory;
 	VkDeviceMemory scenery_index_buffer_memory;
-
+	
 	create_buffer(&out_state->scenery_vertex_buffer, &scenery_vertex_buffer_memory, 
 		chosen_physical_device, out_state->device, 
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, c_scenery_vertex_buffer_size);
 
 	copy_to_buffer(out_state->device, scenery_vertex_buffer_memory, (void*)vertices, c_scenery_vertex_buffer_size);
-
+	
 	create_buffer(&out_state->scenery_index_buffer, &scenery_index_buffer_memory,
 		chosen_physical_device, out_state->device,
 		VK_BUFFER_USAGE_INDEX_BUFFER_BIT, c_scenery_index_buffer_size);
@@ -867,7 +867,8 @@ void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 	vkMapMemory(state->device, state->matrix_buffer_memory, 0, c_matrix_data_size, 0, (void**)&dst);
 	for (uint32 i = 0; i < (num_players + 1); ++i)
 	{
-		memcpy(&dst[i * (sizeof(matrices[0]) + state->num_matrix_buffer_padding_bytes)], &matrices[i], sizeof(matrices[0]));
+		uint32 offset = i * (sizeof(matrices[0]) + state->num_matrix_buffer_padding_bytes);
+		memcpy(&dst[offset], &matrices[i], sizeof(matrices[0]));
 	}
 	vkUnmapMemory(state->device, state->matrix_buffer_memory);
 

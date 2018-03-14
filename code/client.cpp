@@ -148,7 +148,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
 	bool32* players_present = (bool32*)alloc_permanent(sizeof(bool32) * c_max_clients);
-	Matrix_4x4* player_mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * c_max_clients);
+	Matrix_4x4* mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * (c_max_clients + 1));
 
 	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
 	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
@@ -329,11 +329,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			player_visual_states[local_player_slot] = *local_player_visual_state;
 		}
 
+		// Create mvp matrix for scenery
+		mvp_matrices[0] = *projection_matrix;
 
 		// Create mvp matrix for each player
 		bool32* players_present_end = &players_present[c_max_clients];
 		Player_Visual_State* player_visual_state = &player_visual_states[0];
-		Matrix_4x4* player_mvp_matrix = &player_mvp_matrices[0];
+		Matrix_4x4* player_mvp_matrix = &mvp_matrices[1];
 		Matrix_4x4 temp_rotation_matrix;
 		Matrix_4x4 temp_translation_matrix;
 		Matrix_4x4 temp_model_matrix;
@@ -352,8 +354,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				++player_mvp_matrix;
 			}
 		}
-		uint32 num_matrices = (uint32)(player_mvp_matrix - player_mvp_matrices);
-		Graphics::update_and_draw(graphics_state, player_mvp_matrices, num_matrices);
+		uint32 num_matrices = (uint32)(player_mvp_matrix - &mvp_matrices[1]);
+		Graphics::update_and_draw(graphics_state, mvp_matrices, num_matrices);
 
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick);
