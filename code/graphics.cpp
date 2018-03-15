@@ -811,7 +811,7 @@ void init(	State* out_state,
 	constexpr uint32 c_floor_tiles_count = 50;
 	constexpr uint32 c_floor_tiles_total = c_floor_tiles_count * c_floor_tiles_count;
 	constexpr float32 c_floor_tile_size = 1.0f;
-	constexpr float32 c_floor_tile_spacing = 1.0f;
+	constexpr float32 c_floor_tile_spacing = 0.5f;
 	constexpr uint32 c_num_scenery_vertices = c_floor_tiles_total * 4;
 	constexpr uint32 c_num_scenery_indices = c_floor_tiles_total * 6;
 	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
@@ -827,9 +827,9 @@ void init(	State* out_state,
 	{
 		for (uint32 y = 0; y < c_floor_tiles_count; ++y)
 		{
-			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
-			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * c_floor_tile_size;
-			center.z = -2.0f;
+			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
+			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
+			center.z = -0.5f; // todo(jbr) depth buffering
 			create_cube_face(vertices, vertex_offset, indices, index_offset, &center, &right, &up, &colour);
 			vertex_offset += 4;
 			index_offset += 6;
