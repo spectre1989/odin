@@ -31,7 +31,7 @@ int main()
 	}
 
 	Net::Socket sock;
-	if (!Net::socket_create(&sock))
+	if (!Net::socket(&sock))
 	{
 		return 1;
 	}
@@ -70,7 +70,7 @@ int main()
 	uint32 player_input_buffer_head = 0;
 	uint32* client_timestamps = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
 	uint32 tick_number = 0;
-	Timer tick_timer = timer_create();
+	Timer tick_timer = timer();
 
 
 	while (true)

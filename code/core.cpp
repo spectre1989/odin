@@ -3,7 +3,7 @@
 #include <math.h>
 
 
-Vec_3f vec_3f_create(float32 x, float32 y, float32 z)
+Vec_3f vec_3f(float32 x, float32 y, float32 z)
 {
 	Vec_3f v;
 	v.x = x;
@@ -12,29 +12,23 @@ Vec_3f vec_3f_create(float32 x, float32 y, float32 z)
 	return v;
 }
 
-void vec_3f_add(Vec_3f* result, Vec_3f* v)
+Vec_3f vec_3f_add(Vec_3f a, Vec_3f b)
 {
-	result->x += v->x;
-	result->y += v->y;
-	result->z += v->z;
+	return vec_3f(a.x + b.x, a.y + b.y, a.z + b.z);
 }
 
-void vec_3f_sub(Vec_3f* result, Vec_3f* v)
+Vec_3f vec_3f_sub(Vec_3f a, Vec_3f b)
 {
-	result->x -= v->x;
-	result->y -= v->y;
-	result->z -= v->z;
+	return vec_3f(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
-void vec_3f_mul(Vec_3f* result, float32 f)
+Vec_3f vec_3f_mul(Vec_3f v, float32 f)
 {
-	result->x *= f;
-	result->y *= f;
-	result->z *= f;
+	return vec_3f(v.x * f, v.y * f, v.z * f);
 }
 
 
-void matrix_4x4_create_projection(Matrix_4x4* matrix, 
+void matrix_4x4_projection(Matrix_4x4* matrix, 
 	float32 fov_y, float32 aspect_ratio,
 	float32 near_plane, float32 far_plane)
 {
@@ -120,11 +114,13 @@ void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b)
 }
 
 
-void circular_index_create(Circular_Index* index, uint32 capacity)
+Circular_Index circular_index(uint32 capacity)
 {
-	index->head = 0;
-	index->size = 0;
-	index->capacity = capacity;
+	Circular_Index index;
+	index.head = 0;
+	index.size = 0;
+	index.capacity = capacity;
+	return index;
 }
 
 bool32 circular_index_is_full(Circular_Index* index)
@@ -162,7 +158,7 @@ void timer_restart(Timer* timer)
 	QueryPerformanceCounter(&timer->start);
 }
 
-Timer timer_create()
+Timer timer()
 {
 	Timer timer = {};
 	timer_restart(&timer);
@@ -196,7 +192,7 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 	}
 }
 
-void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size)
+void memory_allocator(Memory_Allocator* allocator, uint8* memory, uint64 size)
 {
 	allocator->memory = memory;
 	allocator->next = memory;
@@ -232,8 +228,8 @@ void globals_init(Log_Function* log_func)
 	// put globals at the start of permanent memory block
 	globals = (Globals*)memory;
 	
-	memory_allocator_create(&globals->permanent_allocator, memory + sizeof(Globals), c_permanent_memory_size - sizeof(Globals));
-	memory_allocator_create(&globals->temp_allocator, memory + c_permanent_memory_size, c_temp_memory_size);
+	memory_allocator(&globals->permanent_allocator, memory + sizeof(Globals), c_permanent_memory_size - sizeof(Globals));
+	memory_allocator(&globals->temp_allocator, memory + c_permanent_memory_size, c_temp_memory_size);
 	globals->log_function = log_func;
 	QueryPerformanceFrequency(&globals->clock_frequency);
 	UINT sleep_granularity_ms = 1;

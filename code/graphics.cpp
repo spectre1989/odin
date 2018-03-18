@@ -81,36 +81,26 @@ static void copy_to_buffer(VkDevice device, VkDeviceMemory buffer_memory, void* 
 
 static void create_cube_face(Vertex* vertices, uint16 vertex_offset, 
 	uint16* indices, uint32 index_offset, 
-	Vec_3f* center,
-	Vec_3f* right,
-	Vec_3f* up,
-	Vec_3f* colour)
+	Vec_3f center,
+	Vec_3f right,
+	Vec_3f up,
+	Vec_3f colour)
 {
-	Vec_3f half_right = *right;
-	vec_3f_mul(&half_right, 0.5f);
-	Vec_3f half_up = *up;
-	vec_3f_mul(&half_up, 0.5f);
+	Vec_3f half_right = vec_3f_mul(right, 0.5f);
+	Vec_3f half_up = vec_3f_mul(up, 0.5f);
 
 	// top left
-	vertices[vertex_offset].pos = *center;
-	vec_3f_sub(&vertices[vertex_offset].pos, &half_right);
-	vec_3f_add(&vertices[vertex_offset].pos, &half_up);
-	vertices[vertex_offset].colour = *colour;
+	vertices[vertex_offset].pos = vec_3f_add(vec_3f_sub(center, half_right), half_up);
+	vertices[vertex_offset].colour = colour;
 	// top right
-	vertices[vertex_offset + 1].pos = *center;
-	vec_3f_add(&vertices[vertex_offset + 1].pos, &half_right);
-	vec_3f_add(&vertices[vertex_offset + 1].pos, &half_up);
-	vertices[vertex_offset + 1].colour = *colour;
+	vertices[vertex_offset + 1].pos = vec_3f_add(vec_3f_add(center, half_right), half_up);
+	vertices[vertex_offset + 1].colour = colour;
 	// bottom right
-	vertices[vertex_offset + 2].pos = *center;
-	vec_3f_add(&vertices[vertex_offset + 2].pos, &half_right);
-	vec_3f_sub(&vertices[vertex_offset + 2].pos, &half_up);
-	vertices[vertex_offset + 2].colour = *colour;
+	vertices[vertex_offset + 2].pos = vec_3f_sub(vec_3f_add(center, half_right), half_up);
+	vertices[vertex_offset + 2].colour = colour;
 	// bottom left
-	vertices[vertex_offset + 3].pos = *center;
-	vec_3f_sub(&vertices[vertex_offset + 3].pos, &half_right);
-	vec_3f_sub(&vertices[vertex_offset + 3].pos, &half_up);
-	vertices[vertex_offset + 3].colour = *colour;
+	vertices[vertex_offset + 3].pos = vec_3f_sub(vec_3f_sub(center, half_right), half_up);
+	vertices[vertex_offset + 3].colour = colour;
 
 	indices[index_offset] = vertex_offset;
 	indices[index_offset + 1] = vertex_offset + 1;
@@ -757,37 +747,37 @@ void init(	State* out_state,
 
 	// front face
 	constexpr float32 c_size = 1.0f;
-	Vec_3f center = vec_3f_create(0.0f, -0.5f, 0.0f); // todo(jbr) maybe lose all _create suffixes, so just vec_3f()? a bit like a constructor
-	Vec_3f colour = vec_3f_create(1.0f, 0.0f, 0.0f);
-	Vec_3f right = vec_3f_create(c_size, 0.0f, 0.0f);
-	Vec_3f up = vec_3f_create(0.0f, 0.0f, c_size);
-	create_cube_face(vertices, 0, indices, 0, &center, &right, &up, &colour);
+	Vec_3f center = vec_3f(0.0f, -0.5f, 0.0f);
+	Vec_3f colour = vec_3f(1.0f, 0.0f, 0.0f);
+	Vec_3f right = vec_3f(c_size, 0.0f, 0.0f);
+	Vec_3f up = vec_3f(0.0f, 0.0f, c_size);
+	create_cube_face(vertices, 0, indices, 0, center, right, up, colour);
 	// back face
-	center = vec_3f_create(0.0f, 0.5f, 0.0f);
-	colour = vec_3f_create(0.0f, 1.0f, 0.0f);
-	right = vec_3f_create(-c_size, 0.0f, 0.0f);
-	create_cube_face(vertices, 4, indices, 6, &center, &right, &up, &colour);
+	center = vec_3f(0.0f, 0.5f, 0.0f);
+	colour = vec_3f(0.0f, 1.0f, 0.0f);
+	right = vec_3f(-c_size, 0.0f, 0.0f);
+	create_cube_face(vertices, 4, indices, 6, center, right, up, colour);
 	// left face
-	center = vec_3f_create(-0.5f, 0.0f, 0.0f);
-	colour = vec_3f_create(0.0f, 0.0f, 1.0f);
-	right = vec_3f_create(0.0f, -c_size, 0.0f);
-	create_cube_face(vertices, 8, indices, 12, &center, &right, &up, &colour);
+	center = vec_3f(-0.5f, 0.0f, 0.0f);
+	colour = vec_3f(0.0f, 0.0f, 1.0f);
+	right = vec_3f(0.0f, -c_size, 0.0f);
+	create_cube_face(vertices, 8, indices, 12, center, right, up, colour);
 	// right face
-	center = vec_3f_create(0.5f, 0.0f, 0.0f);
-	colour = vec_3f_create(1.0f, 1.0f, 0.0f);
-	right = vec_3f_create(0.0f, c_size, 0.0f);
-	create_cube_face(vertices, 12, indices, 18, &center, &right, &up, &colour);
+	center = vec_3f(0.5f, 0.0f, 0.0f);
+	colour = vec_3f(1.0f, 1.0f, 0.0f);
+	right = vec_3f(0.0f, c_size, 0.0f);
+	create_cube_face(vertices, 12, indices, 18, center, right, up, colour);
 	// bottom face
-	center = vec_3f_create(0.0f, 0.0f, -0.5f);
-	colour = vec_3f_create(0.0f, 1.0f, 1.0f);
-	right = vec_3f_create(c_size, 0.0f, 0.0f);
-	up = vec_3f_create(0.0f, -c_size, 0.0f);
-	create_cube_face(vertices, 16, indices, 24, &center, &right, &up, &colour);
+	center = vec_3f(0.0f, 0.0f, -0.5f);
+	colour = vec_3f(0.0f, 1.0f, 1.0f);
+	right = vec_3f(c_size, 0.0f, 0.0f);
+	up = vec_3f(0.0f, -c_size, 0.0f);
+	create_cube_face(vertices, 16, indices, 24, center, right, up, colour);
 	// top face
-	center = vec_3f_create(0.0f, 0.0f, 0.5f);
-	colour = vec_3f_create(1.0f, 0.0f, 1.0f);
-	right = vec_3f_create(-c_size, 0.0f, 0.0f);
-	create_cube_face(vertices, 20, indices, 30, &center, &right, &up, &colour);
+	center = vec_3f(0.0f, 0.0f, 0.5f);
+	colour = vec_3f(1.0f, 0.0f, 1.0f);
+	right = vec_3f(-c_size, 0.0f, 0.0f);
+	create_cube_face(vertices, 20, indices, 30, center, right, up, colour);
 
 	// Create vertex buffer
 	VkDeviceMemory cube_vertex_buffer_memory;
@@ -818,9 +808,9 @@ void init(	State* out_state,
 	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(uint16);
 	vertices = (Vertex*)alloc_temp(c_scenery_vertex_buffer_size);
 	indices = (uint16*)alloc_temp(c_scenery_index_buffer_size);
-	up = vec_3f_create(0.0f, 1.0f, 0.0f);
-	right = vec_3f_create(1.0f, 0.0f, 0.0f);
-	colour = vec_3f_create(1.0f, 1.0f, 1.0f);
+	up = vec_3f(0.0f, 1.0f, 0.0f);
+	right = vec_3f(1.0f, 0.0f, 0.0f);
+	colour = vec_3f(1.0f, 1.0f, 1.0f);
 	uint16 vertex_offset = 0;
 	uint32 index_offset = 0;
 	for (uint32 x = 0; x < c_floor_tiles_count; ++x)
@@ -830,7 +820,7 @@ void init(	State* out_state,
 			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
 			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
 			center.z = -0.5f; // todo(jbr) depth buffering
-			create_cube_face(vertices, vertex_offset, indices, index_offset, &center, &right, &up, &colour);
+			create_cube_face(vertices, vertex_offset, indices, index_offset, center, right, up, colour);
 			vertex_offset += 4;
 			index_offset += 6;
 		}

@@ -23,7 +23,7 @@ bool32 init()
 	return true;
 }
 
-IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port)
+IP_Endpoint ip_endpoint(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port)
 {
 	IP_Endpoint ip_endpoint = {};
 	ip_endpoint.address = (a << 24) | (b << 16) | (c << 8) | d;
@@ -80,12 +80,12 @@ static bool32 set_sock_opt(SOCKET sock, int opt, int val)
 	return val == actual;
 }
 
-bool32 socket_create(Socket* out_socket)
+bool32 socket(Socket* out_socket)
 {
 	int address_family = AF_INET;
 	int type = SOCK_DGRAM;
 	int protocol = IPPROTO_UDP;
-	SOCKET sock = socket(address_family, type, protocol);
+	SOCKET sock = ::socket(address_family, type, protocol);
 
 	if (!set_sock_opt(sock, SO_RCVBUF, (int)megabytes(1)))
 	{
@@ -191,15 +191,16 @@ void socket_set_fake_lag_s(	Socket* /*sock*/,
 } // namespace Internal
 
 
-static void packet_buffer_create(Packet_Buffer* packet_buffer, uint32 max_packets, uint32 max_packet_size)
+static Packet_Buffer packet_buffer(uint32 max_packets, uint32 max_packet_size)
 {
-	*packet_buffer = {};
-	circular_index_create(&packet_buffer->index, max_packets);
-	packet_buffer->max_packet_size = max_packet_size;
-	packet_buffer->packets = alloc_permanent(max_packets * max_packet_size);
-	packet_buffer->packet_sizes = (uint32*)alloc_permanent(sizeof(uint32) * max_packets);
-	packet_buffer->endpoints = (IP_Endpoint*)alloc_permanent(sizeof(IP_Endpoint) * max_packets);
-	packet_buffer->times = (LARGE_INTEGER*)alloc_permanent(sizeof(LARGE_INTEGER) * max_packets);
+	Packet_Buffer packet_buffer = {};
+	packet_buffer.index = circular_index(max_packets);
+	packet_buffer.max_packet_size = max_packet_size;
+	packet_buffer.packets = alloc_permanent(max_packets * max_packet_size);
+	packet_buffer.packet_sizes = (uint32*)alloc_permanent(sizeof(uint32) * max_packets);
+	packet_buffer.endpoints = (IP_Endpoint*)alloc_permanent(sizeof(IP_Endpoint) * max_packets);
+	packet_buffer.times = (LARGE_INTEGER*)alloc_permanent(sizeof(LARGE_INTEGER) * max_packets);
+	return packet_buffer;
 }
 
 static bool32 packet_buffer_is_full(Packet_Buffer* packet_buffer)
@@ -260,11 +261,11 @@ static bool32 packet_buffer_pop(Packet_Buffer* packet_buffer, uint8** out_packet
 	return false;
 }
 
-bool32 socket_create(Socket* sock)
+bool32 socket(Socket* sock)
 {
 	*sock = {};
 
-	if (!Internal::socket_create(&sock->sock))
+	if (!Internal::socket(&sock->sock))
 	{
 		return false;
 	}
@@ -352,8 +353,8 @@ void socket_set_fake_lag_s(	Socket* sock,
 							uint32 max_packet_size)
 {
 	sock->fake_lag_s = fake_lag_s;
-	packet_buffer_create(&sock->send_buffer, (uint32)((max_packets_out_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
-	packet_buffer_create(&sock->recv_buffer, (uint32)((max_packets_in_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
+	sock->send_buffer = packet_buffer((uint32)((max_packets_out_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
+	sock->recv_buffer = packet_buffer((uint32)((max_packets_in_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
 }
 
 #endif // #ifdef FAKE_LAG

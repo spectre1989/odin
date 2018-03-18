@@ -129,7 +129,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		return 0;
 	}
 	Net::Socket sock;
-	if (!Net::socket_create(&sock))
+	if (!Net::socket(&sock))
 	{
 		return 0;
 	}
@@ -137,7 +137,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
 	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
-	Net::IP_Endpoint server_endpoint = Net::ip_endpoint_create(127, 0, 0, 1, c_port);
+	Net::IP_Endpoint server_endpoint = Net::ip_endpoint(127, 0, 0, 1, c_port);
 
 	uint32 join_msg_size = Net::client_msg_join_write(socket_buffer);
 	if (!Net::socket_send(&sock, socket_buffer, join_msg_size, &server_endpoint))
@@ -157,21 +157,20 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Player_Visual_State* prediction_history_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_prediction_history_capacity);
 	Player_Nonvisual_State* prediction_history_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State) * c_prediction_history_capacity);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_prediction_history_capacity);
-	Circular_Index* prediction_history_index = (Circular_Index*)alloc_permanent(sizeof(Circular_Index));
-	circular_index_create(prediction_history_index, c_prediction_history_capacity);
+	Circular_Index prediction_history_index = circular_index(c_prediction_history_capacity);
 
 	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
 	constexpr float32 c_aspect_ratio = c_window_width / (float32)c_window_height;
 	constexpr float32 c_near_plane = 1.0f;
 	constexpr float32 c_far_plane = 100.0f;
-	Matrix_4x4* projection_matrix = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4));
-	matrix_4x4_create_projection(projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
+	Matrix_4x4 projection_matrix;
+	matrix_4x4_projection(&projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
 
 	uint32 local_player_slot = (uint32)-1;
 	uint32 tick_number = (uint32)-1;
 	uint32 target_tick_number = (uint32)-1;
-	Timer local_timer = timer_create();
-	Timer tick_timer = timer_create();
+	Timer local_timer = timer();
+	Timer tick_timer = timer();
 
 	
 	// main loop
@@ -255,22 +254,22 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					}
 					else
 					{
-						uint32 oldest_predicted_tick_number = tick_number - prediction_history_index->size;
-						while (prediction_history_index->size && 
+						uint32 oldest_predicted_tick_number = tick_number - prediction_history_index.size;
+						while (prediction_history_index.size && 
 							oldest_predicted_tick_number < received_tick_number)
 						{
 							// discard this one, not needed
 							++oldest_predicted_tick_number;
-							circular_index_pop(prediction_history_index);
+							circular_index_pop(&prediction_history_index);
 						}
 
-						if (prediction_history_index->size &&
+						if (prediction_history_index.size &&
 							oldest_predicted_tick_number == received_tick_number)
 						{
 							Player_Visual_State* received_local_player_visual_state = &player_visual_states[local_player_slot];
 
-							float32 dx = prediction_history_visual_state[prediction_history_index->head].x - received_local_player_visual_state->x;
-							float32 dy = prediction_history_visual_state[prediction_history_index->head].y - received_local_player_visual_state->y;
+							float32 dx = prediction_history_visual_state[prediction_history_index.head].x - received_local_player_visual_state->x;
+							float32 dy = prediction_history_visual_state[prediction_history_index.head].y - received_local_player_visual_state->y;
 							constexpr float32 c_max_error = 0.01f;
 							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 							float32 error_sq = (dx * dx) + (dy * dy);
@@ -280,9 +279,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 								*local_player_visual_state = *received_local_player_visual_state;
 								*local_player_nonvisual_state = received_local_player_nonvisual_state;
-								for (uint32 i = 0; i < prediction_history_index->size; ++i)
+								for (uint32 i = 0; i < prediction_history_index.size; ++i)
 								{
-									uint32 circular_i = circular_index_iterator(prediction_history_index, i);
+									uint32 circular_i = circular_index_iterator(&prediction_history_index, i);
 									
 									prediction_history_visual_state[circular_i] = *local_player_visual_state;
 									prediction_history_nonvisual_state[circular_i] = *local_player_nonvisual_state;
@@ -309,15 +308,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
 			while (tick_number < target_tick_number)
 			{
-				if (circular_index_is_full(prediction_history_index))
+				if (circular_index_is_full(&prediction_history_index))
 				{
-					circular_index_pop(prediction_history_index);
+					circular_index_pop(&prediction_history_index);
 				}
-				uint32 tail = circular_index_tail(prediction_history_index);
+				uint32 tail = circular_index_tail(&prediction_history_index);
 				prediction_history_visual_state[tail] = *local_player_visual_state;
 				prediction_history_nonvisual_state[tail] = *local_player_nonvisual_state;
 				prediction_history_input[tail] = client_globals->player_input;
-				circular_index_push(prediction_history_index);
+				circular_index_push(&prediction_history_index);
 
 				tick_player(local_player_visual_state, local_player_nonvisual_state, &client_globals->player_input);
 				++tick_number;
@@ -331,7 +330,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		// Create view-projection matrix
 		constexpr float32 c_camera_offset_distance = 3.0f;
-		Vec_3f camera_pos = vec_3f_create(
+		Vec_3f camera_pos = vec_3f(
 			local_player_visual_state->x + (c_camera_offset_distance * sinf(local_player_visual_state->facing)), 
 			local_player_visual_state->y - (c_camera_offset_distance * cosf(local_player_visual_state->facing)), 
 			1.0f);
@@ -345,7 +344,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
 
 		Matrix_4x4 view_projection_matrix;
-		matrix_4x4_mul(&view_projection_matrix, projection_matrix, &view_matrix);
+		matrix_4x4_mul(&view_projection_matrix, &projection_matrix, &view_matrix);
 
 		// Create mvp matrix for scenery (just copy view-projection, scenery is not moved)
 		mvp_matrices[0] = view_projection_matrix;

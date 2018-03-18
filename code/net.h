@@ -15,7 +15,7 @@ struct IP_Endpoint
 	uint32 address;
 	uint16 port;
 };
-IP_Endpoint ip_endpoint_create(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port);
+IP_Endpoint ip_endpoint(uint8 a, uint8 b, uint8 c, uint8 d, uint16 port);
 bool32		ip_endpoint_equals(IP_Endpoint* a, IP_Endpoint* b);
 SOCKADDR_IN ip_endpoint_to_sockaddr_in(IP_Endpoint* ip_endpoint);
 void		ip_endpoint_to_str(char* out_str, size_t out_str_size, IP_Endpoint* ip_endpoint);
@@ -62,7 +62,7 @@ struct Socket
 
 #endif // #ifdef FAKE_LAG
 
-bool32 socket_create(Socket* out_socket);
+bool32 socket(Socket* out_socket);
 void socket_close(Socket* sock);
 bool32 socket_bind(Socket* sock, IP_Endpoint* local_endpoint);
 bool32 socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint);

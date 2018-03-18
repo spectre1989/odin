@@ -60,10 +60,10 @@ struct Vec_3f
 {
 	float32 x, y, z;
 };
-Vec_3f vec_3f_create(float32 x, float32 y, float32 z);
-void vec_3f_add(Vec_3f* result, Vec_3f* v);
-void vec_3f_sub(Vec_3f* result, Vec_3f* v);
-void vec_3f_mul(Vec_3f* result, float32 f);
+Vec_3f vec_3f(float32 x, float32 y, float32 z);
+Vec_3f vec_3f_add(Vec_3f a, Vec_3f b);
+Vec_3f vec_3f_sub(Vec_3f a, Vec_3f b);
+Vec_3f vec_3f_mul(Vec_3f v, float32 f);
 
 
 
@@ -80,7 +80,7 @@ struct Matrix_4x4
 			m13, m23, m33, m43,
 			m14, m24, m34, m44;
 };
-void matrix_4x4_create_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
+void matrix_4x4_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
 void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z);
 void matrix_4x4_rotation_z(Matrix_4x4* matrix, float32 r);
 void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b);
@@ -93,7 +93,7 @@ struct Circular_Index
 	uint32 size;
 	uint32 capacity;
 };
-void circular_index_create(Circular_Index* index, uint32 capacity);
+Circular_Index circular_index(uint32 capacity);
 bool32 circular_index_is_full(Circular_Index* index);
 void circular_index_push(Circular_Index* index);
 void circular_index_pop(Circular_Index* index);
@@ -105,7 +105,7 @@ struct Timer
 {
 	LARGE_INTEGER start;
 };
-Timer	timer_create();
+Timer	timer();
 void	timer_restart(Timer* timer);
 float32 timer_get_s(Timer* timer);
 void	timer_wait_until(Timer* timer, float32 wait_time_s);
@@ -117,7 +117,7 @@ struct Memory_Allocator
 	uint8* next;
 	uint64 bytes_remaining;
 };
-void memory_allocator_create(Memory_Allocator* allocator, uint8* memory, uint64 size);
+Memory_Allocator memory_allocator(uint8* memory, uint64 size);
 uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
 uint8* alloc_permanent(uint64 size);
 uint8* alloc_temp(uint64 size);
