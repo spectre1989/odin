@@ -297,9 +297,6 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			}
 		}
 
-		constexpr float32 c_camera_offset_distance = 1.0f;
-		Vec_3f camera_pos = vec_3f_create(0.0f, -c_camera_offset_distance, 0.0f);
-		Vec_3f target_camera_point = vec_3f_create(0.0f, 0.0f, 0.0f);
 
 		// tick player if we have one
 		if (local_player_slot != (uint32)-1 && 
@@ -330,17 +327,22 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 			// we're always the last player in the array
 			player_visual_states[local_player_slot] = *local_player_visual_state;
-
-			target_camera_point.x = local_player_visual_state->x;
-			target_camera_point.y = local_player_visual_state->y;
-
-			camera_pos.x = target_camera_point.x + (c_camera_offset_distance * sinf(local_player_visual_state->facing));
-			camera_pos.y = target_camera_point.y - (c_camera_offset_distance * cosf(local_player_visual_state->facing));
 		}
 
 		// Create view-projection matrix
+		constexpr float32 c_camera_offset_distance = 3.0f;
+		Vec_3f camera_pos = vec_3f_create(
+			local_player_visual_state->x + (c_camera_offset_distance * sinf(local_player_visual_state->facing)), 
+			local_player_visual_state->y - (c_camera_offset_distance * cosf(local_player_visual_state->facing)), 
+			1.0f);
+
+		Matrix_4x4 temp_translation_matrix;
+		Matrix_4x4 temp_rotation_matrix;
+		matrix_4x4_translation(&temp_translation_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
+		matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_visual_state->facing);
+		
 		Matrix_4x4 view_matrix;
-		matrix_4x4_translation(&view_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
+		matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
 
 		Matrix_4x4 view_projection_matrix;
 		matrix_4x4_mul(&view_projection_matrix, projection_matrix, &view_matrix);
@@ -352,18 +354,15 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		bool32* players_present_end = &players_present[c_max_clients];
 		Player_Visual_State* player_visual_state = &player_visual_states[0];
 		Matrix_4x4* player_mvp_matrix = &mvp_matrices[1];
-		Matrix_4x4 temp_rotation_matrix;
-		Matrix_4x4 temp_translation_matrix;
 		Matrix_4x4 temp_model_matrix;
 		for (bool32* players_present_iter = &players_present[0];
 			players_present_iter != players_present_end;
 			++players_present_iter, ++player_visual_state)
 		{
-			if(*players_present_iter)
+			if (*players_present_iter)
 			{
 				matrix_4x4_rotation_z(&temp_rotation_matrix, player_visual_state->facing);
-				static float32 z = 0.0f;
-				matrix_4x4_translation(&temp_translation_matrix, player_visual_state->x, player_visual_state->y, z); 
+				matrix_4x4_translation(&temp_translation_matrix, player_visual_state->x, player_visual_state->y, 0.0f);
 				matrix_4x4_mul(&temp_model_matrix, &temp_translation_matrix, &temp_rotation_matrix);
 				matrix_4x4_mul(player_mvp_matrix, &view_projection_matrix, &temp_model_matrix);
 				
