@@ -92,9 +92,9 @@ uint32 server_msg_state_write(
 	uint8* buffer, 
 	uint32 tick_number, 
 	uint32 client_timestamp, 
-	Player_Nonvisual_State* local_player_nonvisual_state,
+	Player_Extra_State* local_player_extra_state,
 	IP_Endpoint* player_endpoints,
-	Player_Visual_State* player_visual_states,
+	Player_Snapshot_State* player_snapshot_states,
 	uint32 max_players)
 {
 	buffer[0] = (uint8)Server_Message::State;
@@ -104,8 +104,8 @@ uint32 server_msg_state_write(
 	uint32 bytes_written = 9;
 
 	// todo(jbr) just update this one part of the packet when sending to multiple clients
-	memcpy(&buffer[bytes_written], &local_player_nonvisual_state->speed, sizeof(local_player_nonvisual_state->speed));
-	bytes_written += sizeof(local_player_nonvisual_state->speed);
+	memcpy(&buffer[bytes_written], &local_player_extra_state->speed, sizeof(local_player_extra_state->speed));
+	bytes_written += sizeof(local_player_extra_state->speed);
 
 	uint8* p_num_players = &buffer[bytes_written++]; // written later
 
@@ -117,12 +117,12 @@ uint32 server_msg_state_write(
 			++num_players;
 
 			buffer[bytes_written++] = i;
-			memcpy(&buffer[bytes_written], &player_visual_states[i].x, sizeof(player_visual_states[i].x));
-			bytes_written += sizeof(player_visual_states[i].x);
-			memcpy(&buffer[bytes_written], &player_visual_states[i].y, sizeof(player_visual_states[i].y));
-			bytes_written += sizeof(player_visual_states[i].y);
-			memcpy(&buffer[bytes_written], &player_visual_states[i].facing, sizeof(player_visual_states[i].facing));
-			bytes_written += sizeof(player_visual_states[i].facing);
+			memcpy(&buffer[bytes_written], &player_snapshot_states[i].x, sizeof(player_snapshot_states[i].x));
+			bytes_written += sizeof(player_snapshot_states[i].x);
+			memcpy(&buffer[bytes_written], &player_snapshot_states[i].y, sizeof(player_snapshot_states[i].y));
+			bytes_written += sizeof(player_snapshot_states[i].y);
+			memcpy(&buffer[bytes_written], &player_snapshot_states[i].facing, sizeof(player_snapshot_states[i].facing));
+			bytes_written += sizeof(player_snapshot_states[i].facing);
 		}
 	}
 
@@ -134,8 +134,8 @@ void server_msg_state_read(
 	uint8* buffer,
 	uint32* tick_number,
 	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
-	Player_Nonvisual_State* local_player_nonvisual_state,
-	Player_Visual_State* player_visual_states, // visual state of all players
+	Player_Extra_State* local_player_extra_state,
+	Player_Snapshot_State* player_snapshot_states, // snapshot state of all players
 	bool32* players_present, // a 1 will be written to every slot actually used
 	uint32 max_players) // max number of players the client can handle
 {
@@ -145,8 +145,8 @@ void server_msg_state_read(
 	memcpy(client_timestamp, &buffer[5], 4);
 	uint32 bytes_read = 9;
 
-	memcpy(&local_player_nonvisual_state->speed, &buffer[bytes_read], sizeof(local_player_nonvisual_state->speed));
-	bytes_read += sizeof(local_player_nonvisual_state->speed);
+	memcpy(&local_player_extra_state->speed, &buffer[bytes_read], sizeof(local_player_extra_state->speed));
+	bytes_read += sizeof(local_player_extra_state->speed);
 
 	bool32* players_present_end = &players_present[max_players];
 	for(bool32* iter = players_present; iter != players_present_end; ++iter)
@@ -159,12 +159,12 @@ void server_msg_state_read(
 	{
 		uint8 slot = buffer[bytes_read++];
 		assert(slot < max_players);
-		memcpy(&player_visual_states[slot].x, &buffer[bytes_read], sizeof(player_visual_states[slot].x));
-		bytes_read += sizeof(player_visual_states[slot].x);
-		memcpy(&player_visual_states[slot].y, &buffer[bytes_read], sizeof(player_visual_states[slot].y));
-		bytes_read += sizeof(player_visual_states[slot].y);
-		memcpy(&player_visual_states[slot].facing, &buffer[bytes_read], sizeof(player_visual_states[slot].facing));
-		bytes_read += sizeof(player_visual_states[slot].facing);
+		memcpy(&player_snapshot_states[slot].x, &buffer[bytes_read], sizeof(player_snapshot_states[slot].x));
+		bytes_read += sizeof(player_snapshot_states[slot].x);
+		memcpy(&player_snapshot_states[slot].y, &buffer[bytes_read], sizeof(player_snapshot_states[slot].y));
+		bytes_read += sizeof(player_snapshot_states[slot].y);
+		memcpy(&player_snapshot_states[slot].facing, &buffer[bytes_read], sizeof(player_snapshot_states[slot].facing));
+		bytes_read += sizeof(player_snapshot_states[slot].facing);
 		players_present[slot] = 1;
 	}
 }

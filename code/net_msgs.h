@@ -5,8 +5,8 @@
 
 
 struct Player_Input;
-struct Player_Visual_State;
-struct Player_Nonvisual_State;
+struct Player_Snapshot_State;
+struct Player_Extra_State;
 
 
 
@@ -38,16 +38,16 @@ uint32	server_msg_state_write(
 	uint8* buffer, 
 	uint32 tick_number, 
 	uint32 client_timestamp, 
-	Player_Nonvisual_State* local_player_nonvisual_state,
+	Player_Extra_State* local_player_extra_state,
 	IP_Endpoint* player_endpoints,
-	Player_Visual_State* player_visual_states,
+	Player_Snapshot_State* player_snapshot_states,
 	uint32 max_players);
 void	server_msg_state_read(
 	uint8* buffer,
 	uint32* tick_number,
 	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
-	Player_Nonvisual_State* local_player_nonvisual_state,
-	Player_Visual_State* player_visual_states, // visual state of all players
+	Player_Extra_State* local_player_extra_state,
+	Player_Snapshot_State* player_snapshot_states, // snapshot state of all players
 	bool32* players_present, // a 1 will be written to every slot actually used
 	uint32 max_players); // max number of players the client can handle
 	

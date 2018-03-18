@@ -146,16 +146,16 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
+	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_max_clients);
 	bool32* players_present = (bool32*)alloc_permanent(sizeof(bool32) * c_max_clients);
 	Matrix_4x4* mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * (c_max_clients + 1));
 
-	Player_Visual_State* local_player_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State));
-	Player_Nonvisual_State* local_player_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State));
+	Player_Snapshot_State* local_player_snapshot_state = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State));
+	Player_Extra_State* local_player_extra_state = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State));
 
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
-	Player_Visual_State* prediction_history_visual_state = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_prediction_history_capacity);
-	Player_Nonvisual_State* prediction_history_nonvisual_state = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State) * c_prediction_history_capacity);
+	Player_Snapshot_State* prediction_history_snapshot_state = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
+	Player_Extra_State* prediction_history_extra_state = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State) * c_prediction_history_capacity);
 	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_prediction_history_capacity);
 	Circular_Index prediction_history_index = circular_index(c_prediction_history_capacity);
 
@@ -225,13 +225,13 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				{
 					uint32 received_tick_number;
 					uint32 received_timestamp;
-					Player_Nonvisual_State received_local_player_nonvisual_state;
+					Player_Extra_State received_local_player_extra_state;
 					Net::server_msg_state_read(
 						socket_buffer, 
 						&received_tick_number, 
 						&received_timestamp, 
-						&received_local_player_nonvisual_state, 
-						player_visual_states, 
+						&received_local_player_extra_state, 
+						player_snapshot_states, 
 						players_present,
 						c_max_clients);
 
@@ -249,7 +249,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					 	received_tick_number >= tick_number)
 					{
 						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
-						*local_player_nonvisual_state = received_local_player_nonvisual_state;
+						*local_player_extra_state = received_local_player_extra_state;
 						tick_number = target_tick_number;
 					}
 					else
@@ -266,10 +266,10 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 						if (prediction_history_index.size &&
 							oldest_predicted_tick_number == received_tick_number)
 						{
-							Player_Visual_State* received_local_player_visual_state = &player_visual_states[local_player_slot];
+							Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
 
-							float32 dx = prediction_history_visual_state[prediction_history_index.head].x - received_local_player_visual_state->x;
-							float32 dy = prediction_history_visual_state[prediction_history_index.head].y - received_local_player_visual_state->y;
+							float32 dx = prediction_history_snapshot_state[prediction_history_index.head].x - received_local_player_snapshot_state->x;
+							float32 dy = prediction_history_snapshot_state[prediction_history_index.head].y - received_local_player_snapshot_state->y;
 							constexpr float32 c_max_error = 0.01f;
 							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 							float32 error_sq = (dx * dx) + (dy * dy);
@@ -277,16 +277,16 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 							{
 								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
 
-								*local_player_visual_state = *received_local_player_visual_state;
-								*local_player_nonvisual_state = received_local_player_nonvisual_state;
+								*local_player_snapshot_state = *received_local_player_snapshot_state;
+								*local_player_extra_state = received_local_player_extra_state;
 								for (uint32 i = 0; i < prediction_history_index.size; ++i)
 								{
 									uint32 circular_i = circular_index_iterator(&prediction_history_index, i);
 									
-									prediction_history_visual_state[circular_i] = *local_player_visual_state;
-									prediction_history_nonvisual_state[circular_i] = *local_player_nonvisual_state;
+									prediction_history_snapshot_state[circular_i] = *local_player_snapshot_state;
+									prediction_history_extra_state[circular_i] = *local_player_extra_state;
 
-									tick_player(local_player_visual_state, local_player_nonvisual_state, &prediction_history_input[circular_i]);
+									tick_player(local_player_snapshot_state, local_player_extra_state, &prediction_history_input[circular_i]);
 								}
 							}
 						}
@@ -313,32 +313,32 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 					circular_index_pop(&prediction_history_index);
 				}
 				uint32 tail = circular_index_tail(&prediction_history_index);
-				prediction_history_visual_state[tail] = *local_player_visual_state;
-				prediction_history_nonvisual_state[tail] = *local_player_nonvisual_state;
+				prediction_history_snapshot_state[tail] = *local_player_snapshot_state;
+				prediction_history_extra_state[tail] = *local_player_extra_state;
 				prediction_history_input[tail] = client_globals->player_input;
 				circular_index_push(&prediction_history_index);
 
-				tick_player(local_player_visual_state, local_player_nonvisual_state, &client_globals->player_input);
+				tick_player(local_player_snapshot_state, local_player_extra_state, &client_globals->player_input);
 				++tick_number;
 			}
 
 			++target_tick_number;
 
 			// we're always the last player in the array
-			player_visual_states[local_player_slot] = *local_player_visual_state;
+			player_snapshot_states[local_player_slot] = *local_player_snapshot_state;
 		}
 
 		// Create view-projection matrix
 		constexpr float32 c_camera_offset_distance = 3.0f;
 		Vec_3f camera_pos = vec_3f(
-			local_player_visual_state->x + (c_camera_offset_distance * sinf(local_player_visual_state->facing)), 
-			local_player_visual_state->y - (c_camera_offset_distance * cosf(local_player_visual_state->facing)), 
+			local_player_snapshot_state->x + (c_camera_offset_distance * sinf(local_player_snapshot_state->facing)), 
+			local_player_snapshot_state->y - (c_camera_offset_distance * cosf(local_player_snapshot_state->facing)), 
 			1.0f);
 
 		Matrix_4x4 temp_translation_matrix;
 		Matrix_4x4 temp_rotation_matrix;
 		matrix_4x4_translation(&temp_translation_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
-		matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_visual_state->facing);
+		matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_snapshot_state->facing);
 		
 		Matrix_4x4 view_matrix;
 		matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
@@ -351,17 +351,17 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 
 		// Create mvp matrix for each player
 		bool32* players_present_end = &players_present[c_max_clients];
-		Player_Visual_State* player_visual_state = &player_visual_states[0];
+		Player_Snapshot_State* player_snapshot_state = &player_snapshot_states[0];
 		Matrix_4x4* player_mvp_matrix = &mvp_matrices[1];
 		Matrix_4x4 temp_model_matrix;
 		for (bool32* players_present_iter = &players_present[0];
 			players_present_iter != players_present_end;
-			++players_present_iter, ++player_visual_state)
+			++players_present_iter, ++player_snapshot_state)
 		{
 			if (*players_present_iter)
 			{
-				matrix_4x4_rotation_z(&temp_rotation_matrix, player_visual_state->facing);
-				matrix_4x4_translation(&temp_translation_matrix, player_visual_state->x, player_visual_state->y, 0.0f);
+				matrix_4x4_rotation_z(&temp_rotation_matrix, player_snapshot_state->facing);
+				matrix_4x4_translation(&temp_translation_matrix, player_snapshot_state->x, player_snapshot_state->y, 0.0f);
 				matrix_4x4_mul(&temp_model_matrix, &temp_translation_matrix, &temp_rotation_matrix);
 				matrix_4x4_mul(player_mvp_matrix, &view_projection_matrix, &temp_model_matrix);
 				

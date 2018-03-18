@@ -52,8 +52,8 @@ int main()
 		client_endpoints[i] = {};
 	}
 	float32* time_since_heard_from_clients = (float32*)alloc_permanent(sizeof(float32) * c_max_clients);
-	Player_Visual_State* player_visual_states = (Player_Visual_State*)alloc_permanent(sizeof(Player_Visual_State) * c_max_clients);
-	Player_Nonvisual_State* player_nonvisual_states = (Player_Nonvisual_State*)alloc_permanent(sizeof(Player_Nonvisual_State) * c_max_clients);
+	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_max_clients);
+	Player_Extra_State* player_extra_states = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State) * c_max_clients);
 	Player_Input* player_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
 	constexpr uint32 c_player_input_buffer_capacity = c_ticks_per_second;
 	Player_Input** player_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_player_input_buffer_capacity);
@@ -111,8 +111,8 @@ int main()
 						{
 							client_endpoints[slot] = from;
 							time_since_heard_from_clients[slot] = 0.0f;
-							player_visual_states[slot] = {};
-							player_nonvisual_states[slot] = {};
+							player_snapshot_states[slot] = {};
+							player_extra_states[slot] = {};
 							player_inputs[slot] = {};
 							client_timestamps[slot] = 0;
 						}
@@ -215,7 +215,7 @@ int main()
 		{
 			if (client_endpoints[i].address)
 			{
-				tick_player(&player_visual_states[i], &player_nonvisual_states[i], &player_inputs[i]);
+				tick_player(&player_snapshot_states[i], &player_extra_states[i], &player_inputs[i]);
 
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
@@ -235,7 +235,7 @@ int main()
 		{
 			if (client_endpoints[i].address)
 			{
-				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, tick_number, client_timestamps[i], &player_nonvisual_states[i], client_endpoints, player_visual_states, c_max_clients);
+				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, tick_number, client_timestamps[i], &player_extra_states[i], client_endpoints, player_snapshot_states, c_max_clients);
 
 				if (!Net::socket_send(&sock, socket_buffer, state_msg_size, &client_endpoints[i]))
 				{
