@@ -1,9 +1,8 @@
 @echo off
 
-if not defined VULKAN_SDK (
-	echo VULKAN_SDK environment variable not found
-) else ( 
-	set INCLUDE=%VULKAN_SDK%\Include;%INCLUDE%
+if not defined VULKAN_SDK ( 
+	echo FATAL ERROR: VULKAN_SDK environment variable not found!
+	goto :eof
 )
 
 rem doesn't seem to be a vs150comntools for 2017 ugh
@@ -17,19 +16,21 @@ FOR /F "usebackq skip=2 tokens=1-2*" %%A IN (`REG QUERY %KEY_NAME% /v %VALUE_NAM
 if defined VS15 (
 	if exist "%VS15%VC\Auxiliary\Build\vcvarsall.bat" (
 		echo Visual Studio 2017 detected
-		"%VS15%VC\Auxiliary\Build\vcvarsall.bat" x64
-		goto end
+		call "%VS15%VC\Auxiliary\Build\vcvarsall.bat" x64
+		goto setup_vulkan
 	)
 )
 
 if defined VS140COMNTOOLS (
 	if exist "%VS140COMNTOOLS%..\..\VC\vcvarsall.bat" (
 		echo Visual Studio 2015 detected
-		"%VS140COMNTOOLS%..\..\VC\vcvarsall.bat" x64
-		goto end
+		call "%VS140COMNTOOLS%..\..\VC\vcvarsall.bat" x64
+		goto setup_vulkan
 	)
 )
 
 echo Couldn't find Visual Studio installation
+goto :eof
 
-:end
+:setup_vulkan
+set INCLUDE=%VULKAN_SDK%\Include;%INCLUDE%
