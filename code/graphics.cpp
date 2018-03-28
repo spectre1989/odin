@@ -339,6 +339,7 @@ void init(	State* out_state,
 	}
 
 	VkPhysicalDeviceFeatures device_features = {};
+	device_features.depthClamp =VK_TRUE;
 
 	VkDeviceCreateInfo device_create_info = {};
 	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -620,6 +621,7 @@ void init(	State* out_state,
  	rasteriser_create_info.lineWidth = 1.0f;
  	rasteriser_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
  	rasteriser_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+ 	rasteriser_create_info.depthClampEnable = VK_TRUE;
 
 	VkPipelineMultisampleStateCreateInfo multisampling_create_info = {};
 	multisampling_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
@@ -628,11 +630,44 @@ void init(	State* out_state,
 	VkPipelineColorBlendAttachmentState colour_blend_attachment = {};
 	colour_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
 											VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	colour_blend_attachment.blendEnable = VK_FALSE;
+	colour_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	colour_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+	colour_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colour_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colour_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	colour_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 
 	VkPipelineColorBlendStateCreateInfo colour_blend_state_create_info = {};
 	colour_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	colour_blend_state_create_info.attachmentCount = 1;
 	colour_blend_state_create_info.pAttachments = &colour_blend_attachment;
+	colour_blend_state_create_info.logicOpEnable = VK_FALSE;
+	colour_blend_state_create_info.logicOp = VK_LOGIC_OP_NO_OP;
+	colour_blend_state_create_info.blendConstants[0] = 1.0f;
+	colour_blend_state_create_info.blendConstants[1] = 1.0f;
+	colour_blend_state_create_info.blendConstants[2] = 1.0f;
+	colour_blend_state_create_info.blendConstants[3] = 1.0f;
+
+	VkPipelineDepthStencilStateCreateInfo depth_state_create_info;
+	depth_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+	depth_state_create_info.pNext = NULL;
+	depth_state_create_info.flags = 0;
+	depth_state_create_info.depthTestEnable = VK_TRUE;
+	depth_state_create_info.depthWriteEnable = VK_TRUE;
+	depth_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	depth_state_create_info.depthBoundsTestEnable = VK_FALSE;
+	depth_state_create_info.minDepthBounds = 0;
+	depth_state_create_info.maxDepthBounds = 0;
+	depth_state_create_info.stencilTestEnable = VK_FALSE;
+	depth_state_create_info.back.failOp = VK_STENCIL_OP_KEEP;
+	depth_state_create_info.back.passOp = VK_STENCIL_OP_KEEP;
+	depth_state_create_info.back.compareOp = VK_COMPARE_OP_ALWAYS;
+	depth_state_create_info.back.compareMask = 0;
+	depth_state_create_info.back.reference = 0;
+	depth_state_create_info.back.depthFailOp = VK_STENCIL_OP_KEEP;
+	depth_state_create_info.back.writeMask = 0;
+	depth_state_create_info.front = depth_state_create_info.back;
 
 	VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
     descriptor_set_layout_binding.binding = 0;
@@ -693,22 +728,12 @@ void init(	State* out_state,
 	subpass_desc.pColorAttachments = &colour_attachment_ref;
 	subpass_desc.pDepthStencilAttachment = &depth_attachment_ref;
 
-	VkSubpassDependency dependency = {};
-	dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	dependency.dstSubpass = 0;
-	dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.srcAccessMask = 0;
-	dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
 	VkRenderPassCreateInfo render_pass_create_info = {};
 	render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	render_pass_create_info.attachmentCount = 2;
 	render_pass_create_info.pAttachments = attachments;
 	render_pass_create_info.subpassCount = 1;
 	render_pass_create_info.pSubpasses = &subpass_desc;
-	render_pass_create_info.dependencyCount = 1;
-	render_pass_create_info.pDependencies = &dependency;
 
 	result = vkCreateRenderPass(out_state->device, &render_pass_create_info, 0, &out_state->render_pass);
 	assert(result == VK_SUCCESS);
@@ -716,13 +741,14 @@ void init(	State* out_state,
 	VkGraphicsPipelineCreateInfo pipeline_create_info = {};
 	pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_create_info.stageCount = 2;
-	pipeline_create_info.pStages = &shader_stage_create_info[0];
+	pipeline_create_info.pStages = shader_stage_create_info;
 	pipeline_create_info.pVertexInputState = &vertex_input_info;
 	pipeline_create_info.pInputAssemblyState = &input_assembly_create_info;
 	pipeline_create_info.pViewportState = &viewport_create_info;
 	pipeline_create_info.pRasterizationState = &rasteriser_create_info;
 	pipeline_create_info.pMultisampleState = &multisampling_create_info;
 	pipeline_create_info.pColorBlendState = &colour_blend_state_create_info;
+	pipeline_create_info.pDepthStencilState = &depth_state_create_info;
 	pipeline_create_info.layout = out_state->pipeline_layout;
 	pipeline_create_info.renderPass = out_state->render_pass;
 	pipeline_create_info.subpass = 0;
@@ -733,18 +759,17 @@ void init(	State* out_state,
 	out_state->swapchain_framebuffers = (VkFramebuffer*)alloc_permanent(sizeof(VkFramebuffer) * swapchain_image_count);
 	VkImageView framebuffer_attachments[2];
 	framebuffer_attachments[1] = depth_buffer_image_view;
+	VkFramebufferCreateInfo framebuffer_create_info = {};
+	framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+	framebuffer_create_info.renderPass = out_state->render_pass;
+	framebuffer_create_info.attachmentCount = 2;
+	framebuffer_create_info.pAttachments = framebuffer_attachments;
+	framebuffer_create_info.width = out_state->swapchain_extent.width;
+	framebuffer_create_info.height = out_state->swapchain_extent.height;
+	framebuffer_create_info.layers = 1;
 	for(uint32 i = 0; i < swapchain_image_count; ++i)
 	{
-		VkFramebufferCreateInfo framebuffer_create_info = {};
-		framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-		framebuffer_create_info.renderPass = out_state->render_pass;
-		framebuffer_create_info.attachmentCount = 2;
 		framebuffer_attachments[0] = swapchain_image_views[i];
-		framebuffer_create_info.pAttachments = framebuffer_attachments;
-		framebuffer_create_info.width = out_state->swapchain_extent.width;
-		framebuffer_create_info.height = out_state->swapchain_extent.height;
-		framebuffer_create_info.layers = 1;
-
 		result = vkCreateFramebuffer(out_state->device, &framebuffer_create_info, 0, &out_state->swapchain_framebuffers[i]);
 		assert(result == VK_SUCCESS);
 	}
@@ -1004,15 +1029,18 @@ void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 
     vkBeginCommandBuffer(state->command_buffers[image_index], &command_buffer_begin_info);
 
-    VkClearValue clear_colour = {0.0f, 0.0f, 0.0f, 1.0f};
+    VkClearValue clear_colours[2];
+    clear_colours[0].color = {0.0f, 0.0f, 0.0f, 1.0f}; // colour
+    clear_colours[1].depthStencil.depth = 1.0f;
+    clear_colours[1].depthStencil.stencil = 0;
     VkRenderPassBeginInfo render_pass_begin_info = {};
 	render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 	render_pass_begin_info.renderPass = state->render_pass;
 	render_pass_begin_info.framebuffer = state->swapchain_framebuffers[image_index];
 	render_pass_begin_info.renderArea.offset = {0, 0};
 	render_pass_begin_info.renderArea.extent = state->swapchain_extent;
-	render_pass_begin_info.clearValueCount = 1;
-	render_pass_begin_info.pClearValues = &clear_colour;
+	render_pass_begin_info.clearValueCount = 2;
+	render_pass_begin_info.pClearValues = clear_colours;
 	vkCmdBeginRenderPass(state->command_buffers[image_index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 	vkCmdBindPipeline(state->command_buffers[image_index], VK_PIPELINE_BIND_POINT_GRAPHICS, state->graphics_pipeline);
