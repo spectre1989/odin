@@ -335,13 +335,18 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			local_player_snapshot_state->y - (c_camera_offset_distance * cosf(local_player_snapshot_state->facing)), 
 			1.0f);
 
-		Matrix_4x4 temp_translation_matrix;
-		Matrix_4x4 temp_rotation_matrix;
-		matrix_4x4_translation(&temp_translation_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
-		matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_snapshot_state->facing);
+		//Matrix_4x4 temp_translation_matrix;
+		//Matrix_4x4 temp_rotation_matrix;
+		//matrix_4x4_translation(&temp_translation_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
+		//matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_snapshot_state->facing);
 		
 		Matrix_4x4 view_matrix;
-		matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
+		//matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
+		matrix_4x4_translation(&view_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
+		Vec_3f player_pos = vec_3f(local_player_snapshot_state->x, local_player_snapshot_state->y, 0.0f);
+		Vec_3f camera_forward = vec_3f_normalised(vec_3f_sub(player_pos, camera_pos));
+		Vec_3f camera_up = vec_3f_normalised(vec_3f(0.0f, 0.0f, 1.0f) - vec_3f_dot(vec_3f(0.0f, 0.0f, 1.0f), camera_forward));
+		Vec_3f camera_right = vec_3f_cross(camera_forward, camera_up);
 
 		Matrix_4x4 view_projection_matrix;
 		matrix_4x4_mul(&view_projection_matrix, &projection_matrix, &view_matrix);
