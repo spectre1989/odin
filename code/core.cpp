@@ -27,6 +27,28 @@ Vec_3f vec_3f_mul(Vec_3f v, float32 f)
 	return vec_3f(v.x * f, v.y * f, v.z * f);
 }
 
+Vec_3f vec_3f_normalised(Vec_3f v)
+{
+	float32 length_sq = (v.x * v.x) + (v.y * v.y) + (v.z * v.z);
+	if (length_sq > 0.0f)
+	{
+		float32 inv_length = 1 / (float32)sqrt(length_sq);
+		return vec_3f(v.x * inv_length, v.y * inv_length, v.z * inv_length);
+	}
+
+	return v;
+}
+
+float vec_3f_dot(Vec_3f a, Vec_3f b)
+{
+	return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+}
+
+Vec_3f vec_3f_cross(Vec_3f a, Vec_3f b)
+{
+	return vec_3f((a.y * b.z) - (a.z * b.y), (a.z * b.x) - (a.x * b.z), (a.x * b.y) - (a.y * b.x));
+}
+
 
 void matrix_4x4_projection(Matrix_4x4* matrix, 
 	float32 fov_y, float32 aspect_ratio,

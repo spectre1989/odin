@@ -64,6 +64,9 @@ Vec_3f vec_3f(float32 x, float32 y, float32 z);
 Vec_3f vec_3f_add(Vec_3f a, Vec_3f b);
 Vec_3f vec_3f_sub(Vec_3f a, Vec_3f b);
 Vec_3f vec_3f_mul(Vec_3f v, float32 f);
+Vec_3f vec_3f_normalised(Vec_3f v);
+float vec_3f_dot(Vec_3f a, Vec_3f b);
+Vec_3f vec_3f_cross(Vec_3f a, Vec_3f b);
 
 
 
