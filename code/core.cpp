@@ -92,6 +92,11 @@ void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z)
 	matrix->m44 = 1.0f;
 }
 
+void matrix_4x4_translation(Matrix_4x4* matrix, Vec_3f translation)
+{
+	matrix_4x4_translation(matrix, translation.x, translation.y, translation.z);
+}
+
 void matrix_4x4_rotation_z(Matrix_4x4* matrix, float32 r)
 {
 	float32 cr = cosf(r);
@@ -133,6 +138,31 @@ void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b)
 	result->m24 = (a->m21 * b->m14) + (a->m22 * b->m24) + (a->m23 * b->m34) + (a->m24 * b->m44);
 	result->m34 = (a->m31 * b->m14) + (a->m32 * b->m24) + (a->m33 * b->m34) + (a->m34 * b->m44);
 	result->m44 = (a->m41 * b->m14) + (a->m42 * b->m24) + (a->m43 * b->m34) + (a->m44 * b->m44);
+}
+
+void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3f up)
+{
+	Matrix_4x4 translation;
+	matrix_4x4_translation(&translation, vec_3f_mul(position, -1.0f));
+
+	Vec_3f view_forward = vec_3f_normalised(vec_3f_sub(target, position));
+	Vec_3f project_up_onto_forward = vec_3f_mul(view_forward, vec_3f_dot(up, view_forward));
+	Vec_3f view_up = vec_3f_normalised(vec_3f_sub(up, project_up_onto_forward));
+	Vec_3f view_right = vec_3f_cross(view_forward, view_up);
+
+	Matrix_4x4 rotation;
+	rotation.m11 = view_right.x;
+	rotation.m12 = view_right.y;
+	rotation.m13 = view_right.z;
+	rotation.m21 = view_forward.x;
+	rotation.m22 = view_forward.y;
+	rotation.m23 = view_forward.z;
+	rotation.m31 = view_up.x;
+	rotation.m32 = view_up.y;
+	rotation.m33 = view_up.z;
+	rotation.m44 = 1.0f;
+
+	matrix_4x4_mul(matrix, &rotation, &translation);
 }
 
 

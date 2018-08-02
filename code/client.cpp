@@ -334,31 +334,14 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 			local_player_snapshot_state->x + (c_camera_offset_distance * sinf(local_player_snapshot_state->facing)), 
 			local_player_snapshot_state->y - (c_camera_offset_distance * cosf(local_player_snapshot_state->facing)), 
 			1.0f);
-
-		Matrix_4x4 temp_translation_matrix;
-		Matrix_4x4 temp_rotation_matrix;
-		//matrix_4x4_translation(&temp_translation_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
-		//matrix_4x4_rotation_z(&temp_rotation_matrix, -local_player_snapshot_state->facing);
+		Vec_3f player_pos = vec_3f(local_player_snapshot_state->x, local_player_snapshot_state->y, 0.0f);
 		
 		Matrix_4x4 view_matrix;
-		//matrix_4x4_mul(&view_matrix, &temp_rotation_matrix, &temp_translation_matrix);
-		matrix_4x4_translation(&view_matrix, -camera_pos.x, -camera_pos.y, -camera_pos.z);
-		Vec_3f player_pos = vec_3f(local_player_snapshot_state->x, local_player_snapshot_state->y, 0.0f);
-		Vec_3f camera_forward = vec_3f_normalised(vec_3f_sub(player_pos, camera_pos));
-		Vec_3f up = vec_3f(0.0f, 0.0f, 1.0f);
-		Vec_3f project_up_onto_forward = vec_3f_mul(camera_forward, vec_3f_dot(up, camera_forward));
-		Vec_3f camera_up = vec_3f_normalised(vec_3f_sub(up, project_up_onto_forward));
-		Vec_3f camera_right = vec_3f_cross(camera_forward, camera_up);
-		view_matrix.m11 = camera_right.x;
-		view_matrix.m12 = camera_right.y;
-		view_matrix.m13 = camera_right.z;
-		view_matrix.m21 = camera_forward.x;
-		view_matrix.m22 = camera_forward.y;
-		view_matrix.m23 = camera_forward.z;
-		view_matrix.m31 = camera_up.x;
-		view_matrix.m32 = camera_up.y;
-		view_matrix.m33 = camera_up.z;
-
+		matrix_4x4_lookat(	&view_matrix, 
+							camera_pos, 				// position
+							player_pos, 				// target
+							vec_3f(0.0f, 0.0f, 1.0f)); 	// up
+		
 		Matrix_4x4 view_projection_matrix;
 		matrix_4x4_mul(&view_projection_matrix, &projection_matrix, &view_matrix);
 
@@ -366,6 +349,9 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		mvp_matrices[0] = view_projection_matrix;
 
 		// Create mvp matrix for each player
+		Matrix_4x4 temp_translation_matrix;
+		Matrix_4x4 temp_rotation_matrix;
+		
 		bool32* players_present_end = &players_present[c_max_clients];
 		Player_Snapshot_State* player_snapshot_state = &player_snapshot_states[0];
 		Matrix_4x4* player_mvp_matrix = &mvp_matrices[1];

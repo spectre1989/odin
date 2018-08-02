@@ -85,9 +85,10 @@ struct Matrix_4x4
 };
 void matrix_4x4_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
 void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z);
+void matrix_4x4_translation(Matrix_4x4* matrix, Vec_3f translation);
 void matrix_4x4_rotation_z(Matrix_4x4* matrix, float32 r);
 void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b);
-
+void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3f up);
 
 
 struct Circular_Index
