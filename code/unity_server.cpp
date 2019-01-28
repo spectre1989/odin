@@ -1,5 +1,0 @@
-#include "core.cpp"
-#include "net.cpp"
-#include "net_msgs.cpp"
-#include "player.cpp"
-#include "server.cpp"

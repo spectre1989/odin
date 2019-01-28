@@ -83,6 +83,7 @@ struct Matrix_4x4
 			m13, m23, m33, m43,
 			m14, m24, m34, m44;
 };
+void matrix_4x4_identity(Matrix_4x4* matrix);
 void matrix_4x4_projection(Matrix_4x4* matrix, float32 fov_y, float32 aspect_ratio, float32 near_plane, float32 far_plane);
 void matrix_4x4_translation(Matrix_4x4* matrix, float32 x, float32 y, float32 z);
 void matrix_4x4_translation(Matrix_4x4* matrix, Vec_3f translation);
@@ -108,33 +109,23 @@ uint32 circular_index_iterator(Circular_Index* index, uint32 offset);
 struct Timer
 {
 	LARGE_INTEGER start;
+	LARGE_INTEGER frequency;
 };
 Timer	timer();
 void	timer_restart(Timer* timer);
 float32 timer_get_s(Timer* timer);
-void	timer_wait_until(Timer* timer, float32 wait_time_s);
+void	timer_wait_until(Timer* timer, float32 wait_time_s, bool sleep_granularity_is_set);
 
 
-struct Memory_Allocator
+struct Linear_Allocator
 {
 	uint8* memory;
 	uint8* next;
 	uint64 bytes_remaining;
 };
-Memory_Allocator memory_allocator(uint8* memory, uint64 size);
-uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size);
-uint8* alloc_permanent(uint64 size);
-uint8* alloc_temp(uint64 size);
+void linear_allocator_create(Linear_Allocator* allocator, uint64 size);
+void linear_allocator_create_sub_allocator(Linear_Allocator* allocator, Linear_Allocator* sub_allocator, uint64 size);
+uint8* linear_allocator_alloc(Linear_Allocator* allocator, uint64 size);
 
 
-struct Globals
-{
-	Memory_Allocator permanent_allocator;
-	Memory_Allocator temp_allocator;
-	Log_Function* log_function;
-	LARGE_INTEGER clock_frequency;
-	bool32 sleep_granularity_was_set;
-};
-extern Globals* globals;
-void globals_init(Log_Function* log_func);
 void log(const char* format, ...);

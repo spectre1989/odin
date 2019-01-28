@@ -44,9 +44,9 @@ static void create_buffer(VkBuffer* out_buffer, VkDeviceMemory* out_buffer_memor
 
 	constexpr uint32 c_required_memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 	uint32 chosen_memory_type_index = (uint32)-1;
-	for(uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
+	for (uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
 	{
-	    if((memory_requirements.memoryTypeBits & (1 << i)) && 
+	    if ((memory_requirements.memoryTypeBits & (1 << i)) && 
 	    	(physical_device_memory_properties.memoryTypes[i].propertyFlags & c_required_memory_properties) == c_required_memory_properties) 
 	    {
 	    	chosen_memory_type_index = i;
@@ -113,7 +113,8 @@ static void create_cube_face(Vertex* vertices, uint16 vertex_offset,
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			uint32 max_players)
+			uint32 max_players,
+			Linear_Allocator* allocator, Linear_Allocator* temp_allocator)
 {
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -128,74 +129,74 @@ void init(	State* out_state,
 	instance_create_info.ppEnabledLayerNames = validation_layers;
 	#endif
 	const char* enabled_extension_names[] = {VK_EXT_DEBUG_REPORT_EXTENSION_NAME, VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
-	instance_create_info.enabledExtensionCount = sizeof( enabled_extension_names ) / sizeof( enabled_extension_names[0] );
+	instance_create_info.enabledExtensionCount = sizeof(enabled_extension_names) / sizeof(enabled_extension_names[0]);
 	instance_create_info.ppEnabledExtensionNames = enabled_extension_names;
 	
 	VkInstance vulkan_instance;
-	VkResult result = vkCreateInstance( &instance_create_info, 0, &vulkan_instance );
-	assert( result == VK_SUCCESS );
+	VkResult result = vkCreateInstance(&instance_create_info, 0, &vulkan_instance);
+	assert(result == VK_SUCCESS);
 
 	VkDebugReportCallbackCreateInfoEXT debug_callback_create_info = {};
 	debug_callback_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
 	debug_callback_create_info.flags = VK_DEBUG_REPORT_INFORMATION_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT | VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_DEBUG_BIT_EXT;
 	debug_callback_create_info.pfnCallback = vulkan_debug_callback;
 
-	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr( vulkan_instance, "vkCreateDebugReportCallbackEXT" );
-	assert( vkCreateDebugReportCallbackEXT );
+	PFN_vkCreateDebugReportCallbackEXT vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vulkan_instance, "vkCreateDebugReportCallbackEXT");
+	assert(vkCreateDebugReportCallbackEXT);
 
 	VkDebugReportCallbackEXT debug_callback;
-	result = vkCreateDebugReportCallbackEXT( vulkan_instance, &debug_callback_create_info, 0, &debug_callback );
-	assert( result == VK_SUCCESS );
+	result = vkCreateDebugReportCallbackEXT(vulkan_instance, &debug_callback_create_info, 0, &debug_callback);
+	assert(result == VK_SUCCESS);
 
 	VkWin32SurfaceCreateInfoKHR surface_create_info = {};
 	surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
 	surface_create_info.hwnd = window_handle;
 	surface_create_info.hinstance = instance;
 
-	PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr( vulkan_instance, "vkCreateWin32SurfaceKHR" );
-	assert( vkCreateWin32SurfaceKHR );
+	PFN_vkCreateWin32SurfaceKHR vkCreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(vulkan_instance, "vkCreateWin32SurfaceKHR");
+	assert(vkCreateWin32SurfaceKHR);
 
 	VkSurfaceKHR surface;
-	result = vkCreateWin32SurfaceKHR( vulkan_instance, &surface_create_info, 0, &surface );
-	assert( result == VK_SUCCESS );
+	result = vkCreateWin32SurfaceKHR(vulkan_instance, &surface_create_info, 0, &surface);
+	assert(result == VK_SUCCESS);
 
 	uint32 physical_device_count;
-	result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, 0 );
-	assert( result == VK_SUCCESS );
-	assert( physical_device_count > 0 );
+	result = vkEnumeratePhysicalDevices(vulkan_instance, &physical_device_count, 0);
+	assert(result == VK_SUCCESS);
+	assert(physical_device_count > 0);
 	
-	VkPhysicalDevice* physical_devices = (VkPhysicalDevice*)alloc_temp(sizeof(VkPhysicalDevice) * physical_device_count);
+	VkPhysicalDevice* physical_devices = (VkPhysicalDevice*)linear_allocator_alloc(temp_allocator, sizeof(VkPhysicalDevice) * physical_device_count);
 
-	result = vkEnumeratePhysicalDevices( vulkan_instance, &physical_device_count, physical_devices );
-	assert( result == VK_SUCCESS );
+	result = vkEnumeratePhysicalDevices(vulkan_instance, &physical_device_count, physical_devices);
+	assert(result == VK_SUCCESS);
 
 	VkPhysicalDevice chosen_physical_device = 0;
 	VkPhysicalDeviceProperties chosen_physical_device_properties = {};
 	VkSurfaceFormatKHR swapchain_surface_format = {};
 	VkPresentModeKHR swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR ; // guaranteed to be supported
 	uint32 swapchain_image_count = 0;
-	for( uint32 i = 0; i < physical_device_count; ++i )
+	for (uint32 i = 0; i < physical_device_count; ++i)
 	{
 		VkPhysicalDeviceProperties device_properties;
-		//VkPhysicalDeviceFeatures device_features; TODO( jbr ) pick best device based on type and features
+		//VkPhysicalDeviceFeatures device_features; TODO(jbr) pick best device based on type and features
 
-		vkGetPhysicalDeviceProperties( physical_devices[i], &device_properties );
-		//vkGetPhysicalDeviceFeatures( physical_devices[i], &device_features );
+		vkGetPhysicalDeviceProperties(physical_devices[i], &device_properties);
+		//vkGetPhysicalDeviceFeatures(physical_devices[i], &device_features);
 
 		// for now just try to pick a discrete gpu, otherwise anything
-		if( device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU )
+		if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		{
 			uint32 extension_count;
-			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, 0 );
-			assert( result == VK_SUCCESS );
+			result = vkEnumerateDeviceExtensionProperties(physical_devices[i], 0, &extension_count, 0);
+			assert(result == VK_SUCCESS);
 
-			VkExtensionProperties* device_extensions = (VkExtensionProperties*)alloc_temp(sizeof(VkExtensionProperties) * extension_count);
-			result = vkEnumerateDeviceExtensionProperties( physical_devices[i], 0, &extension_count, device_extensions );
-			assert( result == VK_SUCCESS );
+			VkExtensionProperties* device_extensions = (VkExtensionProperties*)linear_allocator_alloc(temp_allocator, sizeof(VkExtensionProperties) * extension_count);
+			result = vkEnumerateDeviceExtensionProperties(physical_devices[i], 0, &extension_count, device_extensions);
+			assert(result == VK_SUCCESS);
 
-			for( uint32 j = 0; j < extension_count; ++j )
+			for (uint32 j = 0; j < extension_count; ++j)
 			{
-				if( strcmp( device_extensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME ) == 0 )
+				if (strcmp(device_extensions[j].extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
 				{
 					chosen_physical_device = physical_devices[i];
 					chosen_physical_device_properties = device_properties;
@@ -203,20 +204,20 @@ void init(	State* out_state,
 				}
 			}
 
-			if( chosen_physical_device )
+			if (chosen_physical_device)
 			{
 				uint32 format_count;
 				uint32 present_mode_count;
 
-				result = vkGetPhysicalDeviceSurfaceFormatsKHR( chosen_physical_device, surface, &format_count, 0 );
-				assert( result == VK_SUCCESS );
+				result = vkGetPhysicalDeviceSurfaceFormatsKHR(chosen_physical_device, surface, &format_count, 0);
+				assert(result == VK_SUCCESS);
 
-				result = vkGetPhysicalDeviceSurfacePresentModesKHR( chosen_physical_device, surface, &present_mode_count, 0 );
-				assert( result == VK_SUCCESS );
+				result = vkGetPhysicalDeviceSurfacePresentModesKHR(chosen_physical_device, surface, &present_mode_count, 0);
+				assert(result == VK_SUCCESS);
 
-				if( format_count && present_mode_count ) 
+				if (format_count && present_mode_count) 
 				{
-					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)alloc_temp(sizeof(VkSurfaceFormatKHR) * format_count);
+					VkSurfaceFormatKHR* surface_formats = (VkSurfaceFormatKHR*)linear_allocator_alloc(temp_allocator, sizeof(VkSurfaceFormatKHR) * format_count);
 				    result = vkGetPhysicalDeviceSurfaceFormatsKHR(chosen_physical_device, surface, &format_count, surface_formats);
 				    assert(result == VK_SUCCESS);
 
@@ -227,27 +228,27 @@ void init(	State* out_state,
 				    }
 				    else
 				    {
-				    	// todo( jbr ) choose best surface format
+				    	// todo(jbr) choose best surface format
 						swapchain_surface_format = surface_formats[0];
 				    }
 
-					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)alloc_temp(sizeof(VkPresentModeKHR) * present_mode_count);
-				    result = vkGetPhysicalDeviceSurfacePresentModesKHR( chosen_physical_device, surface, &present_mode_count, present_modes );
-				    assert( result == VK_SUCCESS );
+					VkPresentModeKHR* present_modes = (VkPresentModeKHR*)linear_allocator_alloc(temp_allocator, sizeof(VkPresentModeKHR) * present_mode_count);
+				    result = vkGetPhysicalDeviceSurfacePresentModesKHR(chosen_physical_device, surface, &present_mode_count, present_modes);
+				    assert(result == VK_SUCCESS);
 
-				    for( uint32 j = 0; j < present_mode_count; ++j )
+				    for (uint32 j = 0; j < present_mode_count; ++j)
 				    {
-				    	if( present_modes[j] == VK_PRESENT_MODE_MAILBOX_KHR )
+				    	if (present_modes[j] == VK_PRESENT_MODE_MAILBOX_KHR)
 				    	{
 				    		swapchain_present_mode = VK_PRESENT_MODE_MAILBOX_KHR;
 				    	}
 				    }
 
 					VkSurfaceCapabilitiesKHR surface_capabilities = {};
-					result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR( chosen_physical_device, surface, &surface_capabilities );
-					assert( result == VK_SUCCESS );
+					result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(chosen_physical_device, surface, &surface_capabilities);
+					assert(result == VK_SUCCESS);
 					
-					if( surface_capabilities.currentExtent.width == 0xFFFFFFFF )
+					if (surface_capabilities.currentExtent.width == 0xFFFFFFFF)
 					{
 						out_state->swapchain_extent = {window_width, window_height};
 					}
@@ -256,7 +257,7 @@ void init(	State* out_state,
 						out_state->swapchain_extent = surface_capabilities.currentExtent;
 					}
 
-					if( surface_capabilities.maxImageCount == 0 || surface_capabilities.maxImageCount >= 3 )
+					if (surface_capabilities.maxImageCount == 0 || surface_capabilities.maxImageCount >= 3)
 					{
 						swapchain_image_count = 3;
 					}
@@ -273,42 +274,42 @@ void init(	State* out_state,
 			}
 		}
 
-		if( chosen_physical_device )
+		if (chosen_physical_device)
 		{
 			break;
 		}
 	}
 
-	assert( chosen_physical_device );
+	assert(chosen_physical_device);
 
 	uint32 queue_family_count;
-	vkGetPhysicalDeviceQueueFamilyProperties( chosen_physical_device, &queue_family_count, 0 );
-	assert( queue_family_count > 0 );
+	vkGetPhysicalDeviceQueueFamilyProperties(chosen_physical_device, &queue_family_count, 0);
+	assert(queue_family_count > 0);
 
-	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)alloc_temp(sizeof(VkQueueFamilyProperties) * queue_family_count);
+	VkQueueFamilyProperties* queue_families = (VkQueueFamilyProperties*)linear_allocator_alloc(temp_allocator, sizeof(VkQueueFamilyProperties) * queue_family_count);
 
-	vkGetPhysicalDeviceQueueFamilyProperties( chosen_physical_device, &queue_family_count, queue_families );
+	vkGetPhysicalDeviceQueueFamilyProperties(chosen_physical_device, &queue_family_count, queue_families);
 
-	uint32 graphics_queue_family_index = uint32( -1 );
-	uint32 present_queue_family_index = uint32( -1 );
-	for( uint32 i = 0; i < queue_family_count; ++i )
+	uint32 graphics_queue_family_index = uint32(-1);
+	uint32 present_queue_family_index = uint32(-1);
+	for (uint32 i = 0; i < queue_family_count; ++i)
 	{
-		if( queue_families[i].queueCount > 0 )
+		if (queue_families[i].queueCount > 0)
 		{
-			if( queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT )
+			if (queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			{
 				graphics_queue_family_index = i;
 			}
 
 			VkBool32 present_support = false;
-			result = vkGetPhysicalDeviceSurfaceSupportKHR( chosen_physical_device, i, surface, &present_support );
-			assert( result == VK_SUCCESS );
-			if( present_support )
+			result = vkGetPhysicalDeviceSurfaceSupportKHR(chosen_physical_device, i, surface, &present_support);
+			assert(result == VK_SUCCESS);
+			if (present_support)
 			{
 				present_queue_family_index = i;
 			}
 
-			if( graphics_queue_family_index != uint32( -1 ) && present_queue_family_index != uint32( -1 ) )
+			if (graphics_queue_family_index != uint32(-1) && present_queue_family_index != uint32(-1))
 			{
 				break;
 			}
@@ -377,9 +378,9 @@ void init(	State* out_state,
 	uint32 queue_family_indices[] = {graphics_queue_family_index, present_queue_family_index};
 	swapchain_create_info.pQueueFamilyIndices = queue_family_indices;
 	swapchain_create_info.queueFamilyIndexCount = queue_count;
-	if( queue_count > 1 ) 
+	if (queue_count > 1) 
 	{
-	    swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT; // todo( jbr ) use exclusive and transfer owenership properly
+	    swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT; // todo(jbr) use exclusive and transfer owenership properly
 	} 
 	else 
 	{
@@ -391,18 +392,18 @@ void init(	State* out_state,
 	swapchain_create_info.presentMode = swapchain_present_mode;
 	swapchain_create_info.clipped = VK_TRUE;
 
-	result = vkCreateSwapchainKHR( out_state->device, &swapchain_create_info, 0, &out_state->swapchain );
-	assert( result == VK_SUCCESS );
+	result = vkCreateSwapchainKHR(out_state->device, &swapchain_create_info, 0, &out_state->swapchain);
+	assert(result == VK_SUCCESS);
 
 	// implementation can create more than the number requested, so get the image count again here
-	result = vkGetSwapchainImagesKHR( out_state->device, out_state->swapchain, &swapchain_image_count, 0 );
-	assert( result == VK_SUCCESS );
+	result = vkGetSwapchainImagesKHR(out_state->device, out_state->swapchain, &swapchain_image_count, 0);
+	assert(result == VK_SUCCESS);
 	
-	VkImage* swapchain_images = (VkImage*)alloc_temp(sizeof(VkImage) * swapchain_image_count);
-	result = vkGetSwapchainImagesKHR( out_state->device, out_state->swapchain, &swapchain_image_count, swapchain_images );
-	assert( result == VK_SUCCESS );
+	VkImage* swapchain_images = (VkImage*)linear_allocator_alloc(temp_allocator, sizeof(VkImage) * swapchain_image_count);
+	result = vkGetSwapchainImagesKHR(out_state->device, out_state->swapchain, &swapchain_image_count, swapchain_images);
+	assert(result == VK_SUCCESS);
 
-	VkImageView* swapchain_image_views = (VkImageView*)alloc_temp(sizeof(VkImageView) * swapchain_image_count);
+	VkImageView* swapchain_image_views = (VkImageView*)linear_allocator_alloc(temp_allocator, sizeof(VkImageView) * swapchain_image_count);
 	
 	VkImageViewCreateInfo image_view_create_info = {};
 	image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -417,12 +418,12 @@ void init(	State* out_state,
 	image_view_create_info.subresourceRange.levelCount = 1;
 	image_view_create_info.subresourceRange.baseArrayLayer = 0;
 	image_view_create_info.subresourceRange.layerCount = 1;
-	for( uint32 i = 0; i <  swapchain_image_count; ++i )
+	for (uint32 i = 0; i <  swapchain_image_count; ++i)
 	{
 		image_view_create_info.image = swapchain_images[i];
 	
-		result = vkCreateImageView( out_state->device, &image_view_create_info, 0, &swapchain_image_views[i] );
-		assert( result == VK_SUCCESS );
+		result = vkCreateImageView(out_state->device, &image_view_create_info, 0, &swapchain_image_views[i]);
+		assert(result == VK_SUCCESS);
 	}
 
 	// depth buffer
@@ -479,7 +480,7 @@ void init(	State* out_state,
 	vkGetPhysicalDeviceMemoryProperties(chosen_physical_device, &physical_device_memory_properties);
 
 	uint32 chosen_memory_type_index = (uint32)-1;
-	for(uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
+	for (uint32 i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) 
 	{
 	    if ((depth_buffer_image_memory_reqs.memoryTypeBits & (1 << i)) && 
 	    	(physical_device_memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) 
@@ -523,19 +524,19 @@ void init(	State* out_state,
 	assert(result == VK_SUCCESS);
 
 	// load shaders
-	HANDLE file = CreateFileA("data/vert.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	HANDLE file = CreateFileA("shaders/shader.vert.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	assert(file != INVALID_HANDLE_VALUE);
 	DWORD vert_shader_size = GetFileSize(file, 0);
 	assert(vert_shader_size != INVALID_FILE_SIZE);
-	uint8* vert_shader_bytes = alloc_temp(vert_shader_size);
+	uint8* vert_shader_bytes = linear_allocator_alloc(temp_allocator, vert_shader_size);
 	bool32 read_success = ReadFile(file, vert_shader_bytes, vert_shader_size, 0, 0);
 	assert(read_success);
 
-	file = CreateFileA("data/frag.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+	file = CreateFileA("shaders/shader.frag.spv", GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
 	assert(file != INVALID_HANDLE_VALUE);
 	DWORD frag_shader_size = GetFileSize(file, 0);
 	assert(frag_shader_size != INVALID_FILE_SIZE);
-	uint8* frag_shader_bytes = alloc_temp(frag_shader_size);
+	uint8* frag_shader_bytes = linear_allocator_alloc(temp_allocator, frag_shader_size);
 	read_success = ReadFile(file, frag_shader_bytes, frag_shader_size, 0, 0);
 	assert(read_success);
 
@@ -756,7 +757,7 @@ void init(	State* out_state,
 	result = vkCreateGraphicsPipelines(out_state->device, 0, 1, &pipeline_create_info, 0, &out_state->graphics_pipeline);
 	assert(result == VK_SUCCESS);
 	
-	out_state->swapchain_framebuffers = (VkFramebuffer*)alloc_permanent(sizeof(VkFramebuffer) * swapchain_image_count);
+	out_state->swapchain_framebuffers = (VkFramebuffer*)linear_allocator_alloc(allocator, sizeof(VkFramebuffer) * swapchain_image_count);
 	VkImageView framebuffer_attachments[2];
 	framebuffer_attachments[1] = depth_buffer_image_view;
 	VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -767,7 +768,7 @@ void init(	State* out_state,
 	framebuffer_create_info.width = out_state->swapchain_extent.width;
 	framebuffer_create_info.height = out_state->swapchain_extent.height;
 	framebuffer_create_info.layers = 1;
-	for(uint32 i = 0; i < swapchain_image_count; ++i)
+	for (uint32 i = 0; i < swapchain_image_count; ++i)
 	{
 		framebuffer_attachments[0] = swapchain_image_views[i];
 		result = vkCreateFramebuffer(out_state->device, &framebuffer_create_info, 0, &out_state->swapchain_framebuffers[i]);
@@ -837,10 +838,10 @@ void init(	State* out_state,
 							descriptor_copies);
 
 	// create a command pool per swapchain image, so they can be reset per swapchain image
-	out_state->command_pools = (VkCommandPool*)alloc_permanent(sizeof(VkCommandPool) * swapchain_image_count);
-	out_state->command_buffers = (VkCommandBuffer*)alloc_permanent(sizeof(VkCommandBuffer) * swapchain_image_count);
-	out_state->command_buffers_in_use = (bool32*)alloc_permanent(sizeof(bool32) * swapchain_image_count);
-	out_state->fences = (VkFence*)alloc_permanent(sizeof(VkFence) * swapchain_image_count);
+	out_state->command_pools = (VkCommandPool*)linear_allocator_alloc(allocator, sizeof(VkCommandPool) * swapchain_image_count);
+	out_state->command_buffers = (VkCommandBuffer*)linear_allocator_alloc(allocator, sizeof(VkCommandBuffer) * swapchain_image_count);
+	out_state->command_buffers_in_use = (bool32*)linear_allocator_alloc(allocator, sizeof(bool32) * swapchain_image_count);
+	out_state->fences = (VkFence*)linear_allocator_alloc(allocator, sizeof(VkFence) * swapchain_image_count);
 
 	VkCommandPoolCreateInfo command_pool_create_info = {};
 	command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -883,8 +884,8 @@ void init(	State* out_state,
 	constexpr uint32 c_num_indices = 36;
 	constexpr uint32 c_cube_vertex_buffer_size = c_num_vertices * sizeof(Vertex);
 	constexpr uint32 c_cube_index_buffer_size = c_num_indices * sizeof(uint16);
-	Vertex* vertices = (Vertex*)alloc_temp(c_cube_vertex_buffer_size);
-	uint16* indices = (uint16*)alloc_temp(c_cube_index_buffer_size);
+	Vertex* vertices = (Vertex*)linear_allocator_alloc(temp_allocator, c_cube_vertex_buffer_size);
+	uint16* indices = (uint16*)linear_allocator_alloc(temp_allocator, c_cube_index_buffer_size);
 
 	// front face
 	constexpr float32 c_size = 1.0f;
@@ -947,8 +948,8 @@ void init(	State* out_state,
 	constexpr uint32 c_num_scenery_indices = c_floor_tiles_total * 6;
 	constexpr uint32 c_scenery_vertex_buffer_size = c_num_scenery_vertices * sizeof(Vertex);
 	constexpr uint32 c_scenery_index_buffer_size = c_num_scenery_indices * sizeof(uint16);
-	vertices = (Vertex*)alloc_temp(c_scenery_vertex_buffer_size);
-	indices = (uint16*)alloc_temp(c_scenery_index_buffer_size);
+	vertices = (Vertex*)linear_allocator_alloc(temp_allocator, c_scenery_vertex_buffer_size);
+	indices = (uint16*)linear_allocator_alloc(temp_allocator, c_scenery_index_buffer_size);
 	up = vec_3f(0.0f, 1.0f, 0.0f);
 	right = vec_3f(1.0f, 0.0f, 0.0f);
 	colour = vec_3f(1.0f, 1.0f, 1.0f);
@@ -1069,7 +1070,7 @@ void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players)
 	vkCmdBindVertexBuffers(state->command_buffers[image_index], 0, 1, &state->cube_vertex_buffer, &offset);
 	vkCmdBindIndexBuffer(state->command_buffers[image_index], state->cube_index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
-	for(uint32 i = 0; i < num_players; ++i)
+	for (uint32 i = 0; i < num_players; ++i)
 	{
 		first_set = 0;
 		descriptor_set_count = 1;

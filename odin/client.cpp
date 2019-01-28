@@ -2,12 +2,14 @@
 #include <math.h>
 #include <stdio.h>
 #include <time.h>
+#include <thread>
 // odin
 #include "core.h"
 #include "graphics.h"
 #include "net.h"
 #include "net_msgs.h"
 #include "player.h"
+#include "server.h"
 
 
 
@@ -16,43 +18,35 @@ struct Client_Globals
 	Player_Input player_input;
 };
 
-
-Globals* globals;
-Client_Globals* client_globals;
-
-
-
-static void log_func(const char* format, va_list args)
-{
-	char buffer[512];
-	vsnprintf(buffer, 512, format, args);
-	OutputDebugStringA(buffer);
-}
-
 // todo(jbr) input thread
-static void update_input(WPARAM keycode, bool32 value)
+static void update_input(Player_Input* player_input, WPARAM keycode, bool32 value)
 {
 	switch (keycode)
 	{
 		case 'A':
-			client_globals->player_input.left = value;
+			player_input->left = value;
 		break;
 
 		case 'D':
-			client_globals->player_input.right = value;
+			player_input->right = value;
 		break;
 
 		case 'W':
-			client_globals->player_input.up = value;
+			player_input->up = value;
 		break;
 
 		case 'S':
-			client_globals->player_input.down = value;
+			player_input->down = value;
 		break;
 	}
 }
 
-LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param )
+static Client_Globals* get_client_globals(HWND window_handle)
+{
+	return (Client_Globals*)GetWindowLongPtr(window_handle, 0);
+}
+
+LRESULT CALLBACK WindowProc(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
 {
 	switch (message)
 	{
@@ -62,37 +56,36 @@ LRESULT CALLBACK WindowProc( HWND window_handle, UINT message, WPARAM w_param, L
 		break;
 
 		case WM_KEYDOWN:
-			update_input(w_param, 1);
+			update_input(&get_client_globals(window_handle)->player_input, w_param, 1);
 			return 0;
 		break;
 
 		case WM_KEYUP:
-			update_input(w_param, 0);
+			update_input(&get_client_globals(window_handle)->player_input,w_param, 0);
 			return 0;
 		break;
 	}
 
-	return DefWindowProc( window_handle, message, w_param, l_param );
+	return DefWindowProc(window_handle, message, w_param, l_param);
 }
 
-int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cmd_line*/, int cmd_show )
+int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cmd_line*/, int cmd_show)
 {
 	WNDCLASS window_class;
 	window_class.style = 0;
 	window_class.lpfnWndProc = WindowProc;
 	window_class.cbClsExtra = 0;
-	window_class.cbWndExtra = 0;
+	window_class.cbWndExtra = sizeof(Client_Globals*);
 	window_class.hInstance = instance;
 	window_class.hIcon = 0;
 	window_class.hCursor = 0;
 	window_class.hbrBackground = 0;
 	window_class.lpszMenuName = 0;
-	window_class.lpszClassName = "app_window_class";
+	window_class.lpszClassName = "odin_window_class";
 
-	ATOM window_class_atom = RegisterClass( &window_class );
+	ATOM window_class_atom = RegisterClass(&window_class);
 
-	assert( window_class_atom );
-
+	assert(window_class_atom);
 
 	constexpr uint32 c_window_width = 1280;
 	constexpr uint32 c_window_height = 720;
@@ -107,27 +100,40 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		HMENU 	menu 			= 0;
 		LPVOID 	param 			= 0;
 
-		window_handle 			= CreateWindowA( window_class.lpszClassName, window_name, style, x, y, c_window_width, c_window_height, parent_window, menu, instance, param );
+		window_handle 			= CreateWindowA(window_class.lpszClassName, window_name, style, x, y, c_window_width, c_window_height, parent_window, menu, instance, param);
 
-		assert( window_handle );
+		assert(window_handle);
 	}
-	ShowWindow( window_handle, cmd_show );
+	ShowWindow(window_handle, cmd_show);
 
-	
-	// do this before anything else
-	globals_init(&log_func);
-	client_globals = (Client_Globals*)alloc_permanent(sizeof(Client_Globals));
-	client_globals->player_input = {};
-	
-	// init graphics
-	Graphics::State* graphics_state = (Graphics::State*)alloc_permanent(sizeof(Graphics::State));
-	Graphics::init(graphics_state, window_handle, instance, 
-					c_window_width, c_window_height, c_max_clients);
+	// This stuff needs to be done before starting server thread
+	UINT sleep_granularity_ms = 1;
+	bool32 sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
 
 	if (!Net::init())
 	{
 		return 0;
 	}
+
+	std::thread server_thread(&server_main, sleep_granularity_was_set); // todo(jbr) shut this thread down correctly
+
+	Linear_Allocator allocator;
+	linear_allocator_create(&allocator, megabytes(16));
+
+	Linear_Allocator temp_allocator;
+	linear_allocator_create_sub_allocator(&allocator, &temp_allocator, megabytes(8));
+
+	Client_Globals* client_globals = (Client_Globals*)linear_allocator_alloc(&allocator, sizeof(Client_Globals));
+	client_globals->player_input = {};
+
+	SetWindowLongPtr(window_handle, 0, (LONG_PTR)client_globals);
+	
+	// init graphics
+	Graphics::State* graphics_state = (Graphics::State*)linear_allocator_alloc(&allocator, sizeof(Graphics::State));
+	Graphics::init(graphics_state, window_handle, instance, 
+					c_window_width, c_window_height, c_max_clients,
+					&allocator, &temp_allocator);
+
 	Net::Socket sock;
 	if (!Net::socket(&sock))
 	{
@@ -136,7 +142,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	Net::socket_set_fake_lag_s(&sock, 0.2f, c_ticks_per_second, c_ticks_per_second, c_packet_budget_per_tick); // 200ms of fake lag
 
 	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
-	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
+	uint8* socket_buffer = linear_allocator_alloc(&allocator, c_socket_buffer_size);
 	Net::IP_Endpoint server_endpoint = Net::ip_endpoint(127, 0, 0, 1, c_port);
 
 	uint32 join_msg_size = Net::client_msg_join_write(socket_buffer);
@@ -146,17 +152,17 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 	}
 
 
-	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_max_clients);
-	bool32* players_present = (bool32*)alloc_permanent(sizeof(bool32) * c_max_clients);
-	Matrix_4x4* mvp_matrices = (Matrix_4x4*)alloc_permanent(sizeof(Matrix_4x4) * (c_max_clients + 1));
+	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
+	bool32* players_present = (bool32*)linear_allocator_alloc(&allocator, sizeof(bool32) * c_max_clients);
+	Matrix_4x4* mvp_matrices = (Matrix_4x4*)linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
 
-	Player_Snapshot_State* local_player_snapshot_state = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State));
-	Player_Extra_State* local_player_extra_state = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State));
+	Player_Snapshot_State* local_player_snapshot_state = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
+	Player_Extra_State* local_player_extra_state = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
 
 	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
-	Player_Snapshot_State* prediction_history_snapshot_state = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
-	Player_Extra_State* prediction_history_extra_state = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State) * c_prediction_history_capacity);
-	Player_Input* prediction_history_input = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_prediction_history_capacity);
+	Player_Snapshot_State* prediction_history_snapshot_state = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
+	Player_Extra_State* prediction_history_extra_state = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_prediction_history_capacity);
+	Player_Input* prediction_history_input = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_prediction_history_capacity);
 	Circular_Index prediction_history_index = circular_index(c_prediction_history_capacity);
 
 	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
@@ -194,8 +200,8 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 				got_quit_message = 1;
 				break;
 			}
-			TranslateMessage( &message );
-			DispatchMessage( &message );
+			TranslateMessage(&message);
+			DispatchMessage(&message);
 		}
 		if (got_quit_message)
 		{
@@ -374,7 +380,7 @@ int CALLBACK WinMain( HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*c
 		Graphics::update_and_draw(graphics_state, mvp_matrices, num_matrices);
 
 
-		timer_wait_until(&tick_timer, c_seconds_per_tick);
+		timer_wait_until(&tick_timer, c_seconds_per_tick, sleep_granularity_was_set);
 	}
 
 	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, local_player_slot);

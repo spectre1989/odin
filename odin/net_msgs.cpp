@@ -149,7 +149,7 @@ void server_msg_state_read(
 	bytes_read += sizeof(local_player_extra_state->speed);
 
 	bool32* players_present_end = &players_present[max_players];
-	for(bool32* iter = players_present; iter != players_present_end; ++iter)
+	for (bool32* iter = players_present; iter != players_present_end; ++iter)
 	{
 		*iter = 0;
 	}

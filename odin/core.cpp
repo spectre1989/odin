@@ -1,6 +1,7 @@
 #include "core.h"
 
-#include <math.h>
+#include <cmath>
+#include <cstdio>
 
 
 Vec_3f vec_3f(float32 x, float32 y, float32 z)
@@ -49,6 +50,26 @@ Vec_3f vec_3f_cross(Vec_3f a, Vec_3f b)
 	return vec_3f((a.y * b.z) - (a.z * b.y), (a.z * b.x) - (a.x * b.z), (a.x * b.y) - (a.y * b.x));
 }
 
+
+void matrix_4x4_identity(Matrix_4x4* matrix)
+{
+	matrix->m11 = 1.0f;
+	matrix->m21 = 0.0f;
+	matrix->m31 = 0.0f;
+	matrix->m41 = 0.0f;
+	matrix->m12 = 0.0f;
+	matrix->m22 = 1.0f;
+	matrix->m32 = 0.0f;
+	matrix->m42 = 0.0f;
+	matrix->m13 = 0.0f;
+	matrix->m23 = 0.0f;
+	matrix->m33 = 1.0f;
+	matrix->m43 = 0.0f;
+	matrix->m14 = 0.0f;
+	matrix->m24 = 0.0f;
+	matrix->m34 = 0.0f;
+	matrix->m44 = 1.0f;
+}
 
 void matrix_4x4_projection(Matrix_4x4* matrix, 
 	float32 fov_y, float32 aspect_ratio,
@@ -152,14 +173,20 @@ void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3
 
 	Matrix_4x4 rotation;
 	rotation.m11 = view_right.x;
-	rotation.m12 = view_right.y;
-	rotation.m13 = view_right.z;
 	rotation.m21 = view_forward.x;
-	rotation.m22 = view_forward.y;
-	rotation.m23 = view_forward.z;
 	rotation.m31 = view_up.x;
+	rotation.m41 = 0.0f;
+	rotation.m12 = view_right.y;
+	rotation.m22 = view_forward.y;
 	rotation.m32 = view_up.y;
+	rotation.m42 = 0.0f;
+	rotation.m13 = view_right.z;
+	rotation.m23 = view_forward.z;
 	rotation.m33 = view_up.z;
+	rotation.m43 = 0.0f;
+	rotation.m14 = 0.0f;
+	rotation.m24 = 0.0f;
+	rotation.m34 = 0.0f;
 	rotation.m44 = 1.0f;
 
 	matrix_4x4_mul(matrix, &rotation, &translation);
@@ -205,6 +232,7 @@ uint32 circular_index_iterator(Circular_Index* index, uint32 offset)
 	return (index->head + offset) % index->capacity;
 }
 
+
 void timer_restart(Timer* timer)
 {
 	QueryPerformanceCounter(&timer->start);
@@ -213,6 +241,7 @@ void timer_restart(Timer* timer)
 Timer timer()
 {
 	Timer timer = {};
+	QueryPerformanceFrequency(&timer.frequency);
 	timer_restart(&timer);
 	return timer;
 }
@@ -222,16 +251,16 @@ float32 timer_get_s(Timer* timer)
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
-	return (float32)(now.QuadPart - timer->start.QuadPart) / (float32)globals->clock_frequency.QuadPart;
+	return (float32)(now.QuadPart - timer->start.QuadPart) / (float32)timer->frequency.QuadPart;
 }
 
-void timer_wait_until(Timer* timer, float32 wait_time_s)
+void timer_wait_until(Timer* timer, float32 wait_time_s, bool sleep_granularity_is_set)
 {
 	float32 time_taken_s = timer_get_s(timer);
 
 	while (time_taken_s < wait_time_s)
 	{
-		if (globals->sleep_granularity_was_set)
+		if (sleep_granularity_is_set)
 		{
 			DWORD time_to_wait_ms = (DWORD)((wait_time_s - time_taken_s) * 1000);
 			if (time_to_wait_ms > 0)
@@ -244,56 +273,38 @@ void timer_wait_until(Timer* timer, float32 wait_time_s)
 	}
 }
 
-void memory_allocator(Memory_Allocator* allocator, uint8* memory, uint64 size)
+void linear_allocator_create(Linear_Allocator* allocator, uint64 size)
 {
-	allocator->memory = memory;
-	allocator->next = memory;
+	allocator->memory = new uint8[size];
+	allocator->next = allocator->memory;
 	allocator->bytes_remaining = size;
 }
 
-uint8* memory_allocator_alloc(Memory_Allocator* allocator, uint64 size)
+void linear_allocator_create_sub_allocator(Linear_Allocator* allocator, Linear_Allocator* sub_allocator, uint64 size)
+{
+	sub_allocator->memory = linear_allocator_alloc(allocator, size);
+	sub_allocator->next = sub_allocator->memory;
+	sub_allocator->bytes_remaining = size;
+}
+
+uint8* linear_allocator_alloc(Linear_Allocator* allocator, uint64 size)
 {
 	assert(allocator->bytes_remaining >= size);
 	uint8* mem = allocator->next;
 	allocator->next += size;
+	allocator->bytes_remaining -= size;
 	return mem;
 }
 
-uint8* alloc_permanent(uint64 size)
-{
-	return memory_allocator_alloc(&globals->permanent_allocator, size);
-}
-
-uint8* alloc_temp(uint64 size)
-{
-	return memory_allocator_alloc(&globals->temp_allocator, size);
-}
-
-void globals_init(Log_Function* log_func)
-{
-	constexpr uint64 c_permanent_memory_size = megabytes(64);
-	constexpr uint64 c_temp_memory_size = megabytes(64);
-	constexpr uint64 c_total_memory_size = c_permanent_memory_size + c_temp_memory_size;
-
-	uint8* memory = (uint8*)VirtualAlloc((LPVOID)gigabytes(1), c_total_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
-	// put globals at the start of permanent memory block
-	globals = (Globals*)memory;
-	
-	memory_allocator(&globals->permanent_allocator, memory + sizeof(Globals), c_permanent_memory_size - sizeof(Globals));
-	memory_allocator(&globals->temp_allocator, memory + c_permanent_memory_size, c_temp_memory_size);
-	globals->log_function = log_func;
-	QueryPerformanceFrequency(&globals->clock_frequency);
-	UINT sleep_granularity_ms = 1;
-	globals->sleep_granularity_was_set = timeBeginPeriod(sleep_granularity_ms) == TIMERR_NOERROR;
-}
 
 void log(const char* format, ...)
 {
-	assert(globals->log_function);
+	char buffer[512];
 
 	va_list args;
 	va_start(args, format);
-	globals->log_function(format, args);
+	vsnprintf(buffer, sizeof(buffer), format, args);
 	va_end(args);
+
+	OutputDebugStringA(buffer);
 }

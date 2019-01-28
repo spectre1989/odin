@@ -48,7 +48,8 @@ struct State
 void init(	State* out_state, 
 			HWND window_handle, HINSTANCE instance, 
 			uint32 window_width, uint32 window_height, 
-			uint32 max_players);
+			uint32 max_players,
+			Linear_Allocator* allocator, Linear_Allocator* temp_allocator);
 void update_and_draw(State* state, Matrix_4x4* matrices, uint32 num_players);
 
 

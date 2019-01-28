@@ -1,9 +1,5 @@
-*.exe
-*.ilk
-*.obj
-*.pdb
-*.spv
-*.suo
-
-log.txt
-build/.vs/
+.vs/
+data/
+*.user
+odin/x64/
+x64/

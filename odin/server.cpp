@@ -1,6 +1,3 @@
-// std
-#include <stdio.h>
-// odin
 #include "core.h"
 #include "net.h"
 #include "net_msgs.h"
@@ -8,32 +5,15 @@
 
 
 
-constexpr float32 c_client_timeout 	= 5.0f;
-
-
-
-Globals* globals;
-
-
-
-static void log_func(const char* format, va_list args)
+void server_main(bool32 sleep_granularity_is_set)
 {
-	vprintf(format, args);
-}
-
-int main()
-{
-	globals_init(&log_func);
-
-	if (!Net::init())
-	{
-		return 1;
-	}
+	// todo(jbr) option to create a window and render on server
 
 	Net::Socket sock;
 	if (!Net::socket(&sock))
 	{
-		return 1;
+		log("[server] Net::socket() failed");
+		return;
 	}
 
 	Net::IP_Endpoint local_endpoint = {};
@@ -41,37 +21,42 @@ int main()
 	local_endpoint.port = c_port;
 	if (!Net::socket_bind(&sock, &local_endpoint))
 	{
-		return 1;
+		log("[server] Net::socket_bind() failed");
+		return;
 	}
 
+	Linear_Allocator allocator;
+	linear_allocator_create(&allocator, megabytes(8));
+
 	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
-	uint8* socket_buffer = alloc_permanent(c_socket_buffer_size);
-	Net::IP_Endpoint* client_endpoints = (Net::IP_Endpoint*)alloc_permanent(sizeof(Net::IP_Endpoint) * c_max_clients);
+	uint8* socket_buffer = linear_allocator_alloc(&allocator, c_socket_buffer_size);
+	Net::IP_Endpoint* client_endpoints = (Net::IP_Endpoint*)linear_allocator_alloc(&allocator, sizeof(Net::IP_Endpoint) * c_max_clients);
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		client_endpoints[i] = {};
 	}
-	float32* time_since_heard_from_clients = (float32*)alloc_permanent(sizeof(float32) * c_max_clients);
-	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)alloc_permanent(sizeof(Player_Snapshot_State) * c_max_clients);
-	Player_Extra_State* player_extra_states = (Player_Extra_State*)alloc_permanent(sizeof(Player_Extra_State) * c_max_clients);
-	Player_Input* player_inputs = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
+	float32* time_since_heard_from_clients = (float32*)linear_allocator_alloc(&allocator, sizeof(float32) * c_max_clients);
+	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
+	Player_Extra_State* player_extra_states = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_max_clients);
+	Player_Input* player_inputs = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_max_clients);
 	constexpr uint32 c_player_input_buffer_capacity = c_ticks_per_second;
-	Player_Input** player_input_buffer_inputs = (Player_Input**)alloc_permanent(sizeof(Player_Input*) * c_player_input_buffer_capacity);
-	uint32** player_input_buffer_test = (uint32**)alloc_permanent(sizeof(uint32*) * c_player_input_buffer_capacity);
+	Player_Input** player_input_buffer_inputs = (Player_Input**)linear_allocator_alloc(&allocator, sizeof(Player_Input*) * c_player_input_buffer_capacity);
+	uint32** player_input_buffer_test = (uint32**)linear_allocator_alloc(&allocator, sizeof(uint32*) * c_player_input_buffer_capacity);
 	for (uint32 i = 0; i < c_player_input_buffer_capacity; ++i)
 	{
-		player_input_buffer_inputs[i] = (Player_Input*)alloc_permanent(sizeof(Player_Input) * c_max_clients);
-		player_input_buffer_test[i] = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
+		player_input_buffer_inputs[i] = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_max_clients);
+		player_input_buffer_test[i] = (uint32*)linear_allocator_alloc(&allocator, sizeof(uint32) * c_max_clients);
 		for (uint32 j = 0; j < c_max_clients; ++j)
 		{
 			player_input_buffer_test[i][j] = 0;
 		}
 	}
 	uint32 player_input_buffer_head = 0;
-	uint32* client_timestamps = (uint32*)alloc_permanent(sizeof(uint32) * c_max_clients);
+	uint32* client_timestamps = (uint32*)linear_allocator_alloc(&allocator, sizeof(uint32) * c_max_clients);
 	uint32 tick_number = 0;
 	Timer tick_timer = timer();
 
+	constexpr float32 c_client_timeout 	= 5.0f;
 
 	while (true)
 	{
@@ -244,10 +229,8 @@ int main()
 			}
 		}
 
-		timer_wait_until(&tick_timer, c_seconds_per_tick);
+		timer_wait_until(&tick_timer, c_seconds_per_tick, sleep_granularity_is_set);
 	}
 
 	Net::socket_close(&sock);
-
-	return 0;
 }

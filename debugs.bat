@@ -1,1 +1,0 @@
-devenv build\server.exe
