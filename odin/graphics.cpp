@@ -961,7 +961,7 @@ void init(	State* out_state,
 		{
 			center.x = (x - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
 			center.y = (y - ((c_floor_tiles_count - 1) / 2.0f)) * (c_floor_tile_size + c_floor_tile_spacing);
-			center.z = -0.5f; // todo(jbr) depth buffering
+			center.z = -0.5f;
 			create_cube_face(vertices, vertex_offset, indices, index_offset, center, right, up, colour);
 			vertex_offset += 4;
 			index_offset += 6;

@@ -29,7 +29,7 @@ void client_msg_leave_read(uint8* buffer, uint32* out_slot)
 	memcpy(out_slot, &buffer[1], 2);
 }
 
-uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, uint32 timestamp, uint32 tick_number)
+uint32 client_msg_input_write(uint8* buffer, uint32 slot, float32 dt, Player_Input* input, uint32 prediction_id)
 {
 	// if up/down/left/right are non-zero they're not necessarily 1
 	uint8 packed_input = (uint8)(input->up ? 1 : 0) |
@@ -37,28 +37,48 @@ uint32 client_msg_input_write(uint8* buffer, uint32 slot, Player_Input* input, u
 		(uint8)(input->left ? 1 << 2 : 0) |
 		(uint8)(input->right ? 1 << 3 : 0);
 
-	buffer[0] = (uint8)Client_Message::Input;
-	memcpy(&buffer[1], &slot, 2);
-	buffer[3] = packed_input;
-	memcpy(&buffer[4], &timestamp, 4);
-	memcpy(&buffer[8], &tick_number, 4);
+	uint32 bytes_written = 0;
 
-	return 12;
+	buffer[bytes_written] = (uint8)Client_Message::Input;
+	++bytes_written;
+
+	memcpy(&buffer[bytes_written], &slot, 2);
+	bytes_written += 2;
+
+	memcpy(&buffer[bytes_written], &dt, 4);
+	bytes_written += 4;
+
+	buffer[bytes_written] = packed_input;
+	++bytes_written;
+
+	memcpy(&buffer[bytes_written], &prediction_id, 4);
+	bytes_written += 4;
+
+	return bytes_written;
 }
-void client_msg_input_read(uint8* buffer, uint32* slot, Player_Input* input, uint32* timestamp, uint32* tick_number)
+void client_msg_input_read(uint8* buffer, uint32* slot, float32* dt, Player_Input* input, uint32* prediction_id)
 {
 	assert(buffer[0] == (uint8)Client_Message::Input);
 
-	*slot = 0;
-	memcpy(slot, &buffer[1], 2);
+	uint32 bytes_read = 1;
 
-	input->up = buffer[3] & 1;
-	input->down = buffer[3] & 1 << 1;
-	input->left = buffer[3] & 1 << 2;
-	input->right = buffer[3] & 1 << 3;
+	*slot = 0; // have to clear to zero because only reading 2 bytes with memcpy
+	memcpy(slot, &buffer[bytes_read], 2);
+	bytes_read += 2;
 
-	memcpy(timestamp, &buffer[4], 4);
-	memcpy(tick_number, &buffer[8], 4);
+	memcpy(dt, &buffer[bytes_read], 4);
+	bytes_read += 4;
+
+	uint8 packed_input = buffer[bytes_read];
+	++bytes_read;
+
+	memcpy(prediction_id, &buffer[bytes_read], 4);
+	bytes_read += 4;
+
+	input->up = packed_input & 1;
+	input->down = packed_input & (1 << 1);
+	input->left = packed_input & (1 << 2);
+	input->right = packed_input & (1 << 3);
 }
 
 
@@ -90,20 +110,20 @@ void server_msg_join_result_read(uint8* buffer, bool32* out_success, uint32* out
 
 uint32 server_msg_state_write(
 	uint8* buffer, 
-	uint32 tick_number, 
-	uint32 client_timestamp, 
+	uint32 prediction_id, 
 	Player_Extra_State* local_player_extra_state,
 	IP_Endpoint* player_endpoints,
 	Player_Snapshot_State* player_snapshot_states,
 	uint32 max_players)
 {
+	uint32 bytes_written = 0;
+
 	buffer[0] = (uint8)Server_Message::State;
+	++bytes_written;
 
-	memcpy(&buffer[1], &tick_number, 4);
-	memcpy(&buffer[5], &client_timestamp, 4);
-	uint32 bytes_written = 9;
+	memcpy(&buffer[bytes_written], &prediction_id, 4);
+	bytes_written += 4;
 
-	// todo(jbr) just update this one part of the packet when sending to multiple clients
 	memcpy(&buffer[bytes_written], &local_player_extra_state->speed, sizeof(local_player_extra_state->speed));
 	bytes_written += sizeof(local_player_extra_state->speed);
 
@@ -132,8 +152,7 @@ uint32 server_msg_state_write(
 }
 void server_msg_state_read(
 	uint8* buffer,
-	uint32* tick_number,
-	uint32* client_timestamp, // most recent time stamp server had from client at the time of writing this packet
+	uint32* prediction_id, // most recent prediction id server has received for this player
 	Player_Extra_State* local_player_extra_state,
 	Player_Snapshot_State* player_snapshot_states, // snapshot state of all players
 	bool32* players_present, // a 1 will be written to every slot actually used
@@ -141,9 +160,10 @@ void server_msg_state_read(
 {
 	assert(buffer[0] == (uint8)Server_Message::State);
 
-	memcpy(tick_number, &buffer[1], 4);
-	memcpy(client_timestamp, &buffer[5], 4);
-	uint32 bytes_read = 9;
+	uint32 bytes_read = 1;
+
+	memcpy(prediction_id, &buffer[bytes_read], 4);
+	bytes_read += 4;
 
 	memcpy(&local_player_extra_state->speed, &buffer[bytes_read], sizeof(local_player_extra_state->speed));
 	bytes_read += sizeof(local_player_extra_state->speed);

@@ -28,40 +28,29 @@ void server_main(bool32 sleep_granularity_is_set)
 	Linear_Allocator allocator;
 	linear_allocator_create(&allocator, megabytes(8));
 
-	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
-	uint8* socket_buffer = linear_allocator_alloc(&allocator, c_socket_buffer_size);
-	Net::IP_Endpoint* client_endpoints = (Net::IP_Endpoint*)linear_allocator_alloc(&allocator, sizeof(Net::IP_Endpoint) * c_max_clients);
+	constexpr uint32	c_socket_buffer_size	= c_packet_budget_per_tick;
+	uint8*				socket_buffer			= linear_allocator_alloc(&allocator, c_socket_buffer_size);
+	Net::IP_Endpoint*	client_endpoints		= (Net::IP_Endpoint*)linear_allocator_alloc(&allocator, sizeof(Net::IP_Endpoint) * c_max_clients);
+	
 	for (uint32 i = 0; i < c_max_clients; ++i)
 	{
 		client_endpoints[i] = {};
 	}
-	float32* time_since_heard_from_clients = (float32*)linear_allocator_alloc(&allocator, sizeof(float32) * c_max_clients);
-	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
-	Player_Extra_State* player_extra_states = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_max_clients);
-	Player_Input* player_inputs = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_max_clients);
-	constexpr uint32 c_player_input_buffer_capacity = c_ticks_per_second;
-	Player_Input** player_input_buffer_inputs = (Player_Input**)linear_allocator_alloc(&allocator, sizeof(Player_Input*) * c_player_input_buffer_capacity);
-	uint32** player_input_buffer_test = (uint32**)linear_allocator_alloc(&allocator, sizeof(uint32*) * c_player_input_buffer_capacity);
-	for (uint32 i = 0; i < c_player_input_buffer_capacity; ++i)
-	{
-		player_input_buffer_inputs[i] = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_max_clients);
-		player_input_buffer_test[i] = (uint32*)linear_allocator_alloc(&allocator, sizeof(uint32) * c_max_clients);
-		for (uint32 j = 0; j < c_max_clients; ++j)
-		{
-			player_input_buffer_test[i][j] = 0;
-		}
-	}
-	uint32 player_input_buffer_head = 0;
-	uint32* client_timestamps = (uint32*)linear_allocator_alloc(&allocator, sizeof(uint32) * c_max_clients);
+
+	float32*				time_since_heard_from_clients	= (float32*)				linear_allocator_alloc(&allocator, sizeof(float32)					* c_max_clients);
+	Player_Snapshot_State*	player_snapshot_states			= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State)	* c_max_clients);
+	Player_Extra_State*		player_extra_states				= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State)		* c_max_clients);
+	uint32*					player_prediction_ids			= (uint32*)					linear_allocator_alloc(&allocator, sizeof(uint32)					* c_max_clients);
+	
 	uint32 tick_number = 0;
 	Timer tick_timer = timer();
 
+	constexpr int32 c_tick_rate = 30;
+	constexpr float32 c_seconds_per_tick = 1.0f / c_tick_rate;
 	constexpr float32 c_client_timeout 	= 5.0f;
 
 	while (true)
 	{
-		timer_restart(&tick_timer);
-
 		// read all available packets
 		uint32 bytes_received;
 		Net::IP_Endpoint from;
@@ -98,8 +87,7 @@ void server_main(bool32 sleep_granularity_is_set)
 							time_since_heard_from_clients[slot] = 0.0f;
 							player_snapshot_states[slot] = {};
 							player_extra_states[slot] = {};
-							player_inputs[slot] = {};
-							client_timestamps[slot] = 0;
+							player_prediction_ids[slot] = 0;
 						}
 					}
 					else
@@ -140,34 +128,18 @@ void server_main(bool32 sleep_granularity_is_set)
 				case Net::Client_Message::Input:
 				{
 					uint32 slot;
+					float32 dt;
 					Player_Input input;
-					uint32 timestamp;
-					uint32 input_tick_number;
-					Net::client_msg_input_read(socket_buffer, &slot, &input, &timestamp, &input_tick_number);
+					uint32 prediction_id;
+					Net::client_msg_input_read(socket_buffer, &slot, &dt, &input, &prediction_id);
 
 					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 					{
-						if (input_tick_number >= tick_number)
-						{
-							uint32 offset = input_tick_number - tick_number;
-							if (offset < c_player_input_buffer_capacity)
-							{
-								uint32 write_pos = (player_input_buffer_head + offset) % c_player_input_buffer_capacity;
-								player_input_buffer_inputs[write_pos][slot] = input;
-								player_input_buffer_test[write_pos][slot] = 1;
-							}
-							else
-							{
-								log("[server] Input from %d ignored, too far ahead, it was for tick %d but we're on tick %d\n", slot, input_tick_number, tick_number);
-							}
-						}
-						else
-						{
-							log("[server] Input from %d ignored, behind, it was for tick %d but we're on tick %d\n", slot, input_tick_number, tick_number);
-						}
-						
-						client_timestamps[slot] = timestamp;
+						player_prediction_ids[slot] = prediction_id;
 						time_since_heard_from_clients[slot] = 0.0f;
+
+						if(prediction_id % 200)
+						tick_player(&player_snapshot_states[slot], &player_extra_states[slot], dt, &input);
 					}
 					else
 					{
@@ -177,31 +149,12 @@ void server_main(bool32 sleep_granularity_is_set)
 				break;
 			}
 		}
-
-		// apply any buffered inputs from clients
-		for (uint32 i = 0; i < c_max_clients; ++i)
-		{
-			Player_Input* a = &player_inputs[i];
-			Player_Input* b = &player_input_buffer_inputs[player_input_buffer_head][i];
-			uint32 t1 = player_input_buffer_test[player_input_buffer_head][i];
-			uint32 t0 = 1 - t1;
-
-			a->up = (a->up * t0) + (b->up * t1);
-			a->down = (a->down * t0) + (b->down * t1);
-			a->left = (a->left * t0) + (b->left * t1);
-			a->right = (a->right * t0) + (b->right * t1);
-
-			player_input_buffer_test[player_input_buffer_head][i] = 0; // clear for next time
-		}
-		player_input_buffer_head = (player_input_buffer_head + 1) % c_player_input_buffer_capacity;
-
-		// update players
+		
+		// update clients
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
-				tick_player(&player_snapshot_states[i], &player_extra_states[i], &player_inputs[i]);
-
 				time_since_heard_from_clients[i] += c_seconds_per_tick;
 				if (time_since_heard_from_clients[i] > c_client_timeout)
 				{
@@ -215,12 +168,11 @@ void server_main(bool32 sleep_granularity_is_set)
 		++tick_number;
 		
 		// create and send state packets
-		// todo(jbr) decouple tick rate from state packet rate
 		for (uint32 i = 0; i < c_max_clients; ++i)
 		{
 			if (client_endpoints[i].address)
 			{
-				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, tick_number, client_timestamps[i], &player_extra_states[i], client_endpoints, player_snapshot_states, c_max_clients);
+				uint32 state_msg_size = Net::server_msg_state_write(socket_buffer, player_prediction_ids[i], &player_extra_states[i], client_endpoints, player_snapshot_states, c_max_clients);
 
 				if (!Net::socket_send(&sock, socket_buffer, state_msg_size, &client_endpoints[i]))
 				{
@@ -230,6 +182,7 @@ void server_main(bool32 sleep_granularity_is_set)
 		}
 
 		timer_wait_until(&tick_timer, c_seconds_per_tick, sleep_granularity_is_set);
+		timer_shift_start(&tick_timer, c_seconds_per_tick);
 	}
 
 	Net::socket_close(&sock);

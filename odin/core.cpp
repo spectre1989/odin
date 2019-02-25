@@ -193,6 +193,7 @@ void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3
 }
 
 
+// todo(jbr) can we lose circular index?
 Circular_Index circular_index(uint32 capacity)
 {
 	Circular_Index index;
@@ -232,17 +233,11 @@ uint32 circular_index_iterator(Circular_Index* index, uint32 offset)
 	return (index->head + offset) % index->capacity;
 }
 
-
-void timer_restart(Timer* timer)
-{
-	QueryPerformanceCounter(&timer->start);
-}
-
 Timer timer()
 {
 	Timer timer = {};
 	QueryPerformanceFrequency(&timer.frequency);
-	timer_restart(&timer);
+	QueryPerformanceCounter(&timer.start);
 	return timer;
 }
 
@@ -263,14 +258,19 @@ void timer_wait_until(Timer* timer, float32 wait_time_s, bool sleep_granularity_
 		if (sleep_granularity_is_set)
 		{
 			DWORD time_to_wait_ms = (DWORD)((wait_time_s - time_taken_s) * 1000);
-			if (time_to_wait_ms > 0)
-			{// todo(jbr) test this for possible oversleep
+			if (time_to_wait_ms > 1) // Sleep frequently oversleeps by 1ms, so spin for everything smaller than 2
+			{
 				Sleep(time_to_wait_ms);
 			}
 		}
 
 		time_taken_s = timer_get_s(timer);
 	}
+}
+
+void timer_shift_start(Timer* timer, float32 accumulate_s)
+{
+	timer->start.QuadPart += (LONGLONG)(timer->frequency.QuadPart * accumulate_s);
 }
 
 void linear_allocator_create(Linear_Allocator* allocator, uint64 size)

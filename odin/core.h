@@ -24,13 +24,13 @@ typedef void (Log_Function)(const char*, va_list);
 constexpr uint16 	c_port = 9999;
 constexpr uint32 	c_packet_budget_per_tick = 1024;
 constexpr uint32	c_max_clients = 32;
-constexpr uint32	c_ticks_per_second = 60;
-constexpr float32	c_seconds_per_tick = 1.0f / (float32)c_ticks_per_second;
 constexpr float32 	c_turn_speed = 1.0f;	// how fast player turns
 constexpr float32 	c_acceleration = 20.0f;
 constexpr float32 	c_max_speed = 50.0f;
 constexpr float32	c_pi = 3.14159265359f;
 constexpr float32	c_deg_to_rad = c_pi / 180.0f;
+constexpr int32		c_max_client_tick_rate = 120;
+constexpr int32		c_max_server_tick_rate = 60;
 
 
 
@@ -112,9 +112,9 @@ struct Timer
 	LARGE_INTEGER frequency;
 };
 Timer	timer();
-void	timer_restart(Timer* timer);
 float32 timer_get_s(Timer* timer);
 void	timer_wait_until(Timer* timer, float32 wait_time_s, bool sleep_granularity_is_set);
+void	timer_shift_start(Timer* timer, float32 accumulate_s);
 
 
 struct Linear_Allocator

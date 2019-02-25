@@ -61,7 +61,7 @@ LRESULT CALLBACK WindowProc(HWND window_handle, UINT message, WPARAM w_param, LP
 		break;
 
 		case WM_KEYUP:
-			update_input(&get_client_globals(window_handle)->player_input,w_param, 0);
+			update_input(&get_client_globals(window_handle)->player_input, w_param, 0);
 			return 0;
 		break;
 	}
@@ -139,7 +139,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	{
 		return 0;
 	}
-	Net::socket_set_fake_lag_s(&sock, 0.2f, c_ticks_per_second, c_ticks_per_second, c_packet_budget_per_tick); // 200ms of fake lag
+	Net::socket_set_fake_lag_s(&sock, 0.2f, c_max_server_tick_rate, c_max_client_tick_rate, c_packet_budget_per_tick); // 200ms of fake lag
 
 	constexpr uint32 c_socket_buffer_size = c_packet_budget_per_tick;
 	uint8* socket_buffer = linear_allocator_alloc(&allocator, c_socket_buffer_size);
@@ -152,39 +152,39 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	}
 
 
-	Player_Snapshot_State* player_snapshot_states = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
-	bool32* players_present = (bool32*)linear_allocator_alloc(&allocator, sizeof(bool32) * c_max_clients);
-	Matrix_4x4* mvp_matrices = (Matrix_4x4*)linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
+	Player_Snapshot_State* player_snapshot_states	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
+	bool32* players_present							= (bool32*)					linear_allocator_alloc(&allocator, sizeof(bool32) * c_max_clients);
+	Matrix_4x4* mvp_matrices						= (Matrix_4x4*)				linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
 
-	Player_Snapshot_State* local_player_snapshot_state = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
-	Player_Extra_State* local_player_extra_state = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
+	Player_Snapshot_State* local_player_snapshot_state	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
+	Player_Extra_State* local_player_extra_state		= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
 
-	constexpr uint32 c_prediction_history_capacity = c_ticks_per_second * 2;
-	Player_Snapshot_State* prediction_history_snapshot_state = (Player_Snapshot_State*)linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
-	Player_Extra_State* prediction_history_extra_state = (Player_Extra_State*)linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_prediction_history_capacity);
-	Player_Input* prediction_history_input = (Player_Input*)linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_prediction_history_capacity);
-	Circular_Index prediction_history_index = circular_index(c_prediction_history_capacity);
+	constexpr int32			c_prediction_history_capacity		= 512;
+	constexpr int32			c_prediction_history_mask			= c_prediction_history_capacity - 1;
+	Player_Snapshot_State*	prediction_history_snapshot_state	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
+	Player_Extra_State*		prediction_history_extra_state		= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_prediction_history_capacity);
+	float32*				prediction_history_dt				= (float32*)				linear_allocator_alloc(&allocator, sizeof(float32) * c_prediction_history_capacity);
+	Player_Input*			prediction_history_input			= (Player_Input*)			linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_prediction_history_capacity);
 
-	constexpr float32 c_fov_y = 60.0f * c_deg_to_rad;
-	constexpr float32 c_aspect_ratio = c_window_width / (float32)c_window_height;
-	constexpr float32 c_near_plane = 1.0f;
-	constexpr float32 c_far_plane = 100.0f;
-	Matrix_4x4 projection_matrix;
+	constexpr float32	c_fov_y			= 60.0f * c_deg_to_rad;
+	constexpr float32	c_aspect_ratio	= c_window_width / (float32)c_window_height;
+	constexpr float32	c_near_plane	= 1.0f;
+	constexpr float32	c_far_plane		= 100.0f;
+	Matrix_4x4			projection_matrix;
 	matrix_4x4_projection(&projection_matrix, c_fov_y, c_aspect_ratio, c_near_plane, c_far_plane);
 
-	uint32 local_player_slot = (uint32)-1;
-	uint32 tick_number = (uint32)-1;
-	uint32 target_tick_number = (uint32)-1;
-	Timer local_timer = timer();
-	Timer tick_timer = timer();
+	constexpr int32 c_tick_rate = 60; // todo(jbr) adaptive stable tick rate
+	constexpr float32 c_seconds_per_tick = 1.0f / c_tick_rate;
 
+	uint32 local_player_slot = (uint32)-1;
+	uint32 prediction_id = 0;
+
+	Timer tick_timer = timer();
 	
 	// main loop
 	int exit_code = 0;
 	while (true)
 	{
-		timer_restart(&tick_timer);
-
 		// Windows messages
 		bool32 got_quit_message = 0;
 		MSG message;
@@ -229,72 +229,43 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 				case Net::Server_Message::State:
 				{
-					uint32 received_tick_number;
-					uint32 received_timestamp;
+					uint32 received_prediction_id;
 					Player_Extra_State received_local_player_extra_state;
 					Net::server_msg_state_read(
 						socket_buffer, 
-						&received_tick_number, 
-						&received_timestamp, 
+						&received_prediction_id, 
 						&received_local_player_extra_state, 
 						player_snapshot_states, 
 						players_present,
 						c_max_clients);
-
-					uint32 time_now_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-					uint32 est_rtt_ms = time_now_ms - received_timestamp;
 					
-					// predict at tick number of this state packet, plus rtt, plus a bit for jitter
-					// todo(jbr) better method of working out how much to predict
-					float32 est_rtt_s = est_rtt_ms / 1000.0f;
-					uint32 ticks_to_predict = (uint32)(est_rtt_s / c_seconds_per_tick);
-					ticks_to_predict += 2;
-					target_tick_number = received_tick_number + ticks_to_predict;
+					int32 index = received_prediction_id & c_prediction_history_mask;
+					
+					Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
 
-					if (tick_number == (uint32)-1 ||
-					 	received_tick_number >= tick_number)
+					float32 dx = prediction_history_snapshot_state[index].x - received_local_player_snapshot_state->x;
+					float32 dy = prediction_history_snapshot_state[index].y - received_local_player_snapshot_state->y;
+					constexpr float32 c_max_error = 0.001f; // 0.1cm
+					constexpr float32 c_max_error_sq = c_max_error * c_max_error;
+					float32 error_sq = (dx * dx) + (dy * dy);
+					if (error_sq > c_max_error_sq)
 					{
-						// on first state message, or when the server manages to get ahead of us, just reset our prediction etc from this state message
+						log("[client]error of %f detected at prediction id %d, rewinding and replaying\n", sqrtf(error_sq), received_prediction_id);
+
+						prediction_history_snapshot_state[index] = *received_local_player_snapshot_state;
+						prediction_history_extra_state[index] = received_local_player_extra_state;
+
+						*local_player_snapshot_state = *received_local_player_snapshot_state;
 						*local_player_extra_state = received_local_player_extra_state;
-						tick_number = target_tick_number;
-					}
-					else
-					{
-						uint32 oldest_predicted_tick_number = tick_number - prediction_history_index.size;
-						while (prediction_history_index.size && 
-							oldest_predicted_tick_number < received_tick_number)
+
+						for (uint32 replaying_prediction_id = received_prediction_id + 1; replaying_prediction_id < prediction_id; ++replaying_prediction_id)
 						{
-							// discard this one, not needed
-							++oldest_predicted_tick_number;
-							circular_index_pop(&prediction_history_index);
-						}
+							uint32 replaying_index = replaying_prediction_id & c_prediction_history_mask;
 
-						if (prediction_history_index.size &&
-							oldest_predicted_tick_number == received_tick_number)
-						{
-							Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
-
-							float32 dx = prediction_history_snapshot_state[prediction_history_index.head].x - received_local_player_snapshot_state->x;
-							float32 dy = prediction_history_snapshot_state[prediction_history_index.head].y - received_local_player_snapshot_state->y;
-							constexpr float32 c_max_error = 0.01f;
-							constexpr float32 c_max_error_sq = c_max_error * c_max_error;
-							float32 error_sq = (dx * dx) + (dy * dy);
-							if (error_sq > c_max_error_sq)
-							{
-								log("[client]error of %f detected at tick %d, rewinding and replaying\n", sqrtf(error_sq), received_tick_number);
-
-								*local_player_snapshot_state = *received_local_player_snapshot_state;
-								*local_player_extra_state = received_local_player_extra_state;
-								for (uint32 i = 0; i < prediction_history_index.size; ++i)
-								{
-									uint32 circular_i = circular_index_iterator(&prediction_history_index, i);
+							tick_player(local_player_snapshot_state, local_player_extra_state, prediction_history_dt[replaying_index], &prediction_history_input[replaying_index]);
 									
-									prediction_history_snapshot_state[circular_i] = *local_player_snapshot_state;
-									prediction_history_extra_state[circular_i] = *local_player_extra_state;
-
-									tick_player(local_player_snapshot_state, local_player_extra_state, &prediction_history_input[circular_i]);
-								}
-							}
+							prediction_history_snapshot_state[replaying_index] = *local_player_snapshot_state;
+							prediction_history_extra_state[replaying_index] = *local_player_extra_state;
 						}
 					}
 				}
@@ -302,35 +273,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 			}
 		}
 
-
+		
 		// tick player if we have one
 		if (local_player_slot != (uint32)-1 && 
-			tick_number != (uint32)-1)
+			prediction_id != (uint32)-1)
 		{
-			uint32 time_ms = (uint32)(timer_get_s(&local_timer) * 1000.0f);
-			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, &client_globals->player_input, time_ms, tick_number);
+			float32 dt = c_seconds_per_tick;
+
+			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &client_globals->player_input, prediction_id);
 			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
+			
+			tick_player(local_player_snapshot_state, local_player_extra_state, dt, &client_globals->player_input);
 
-			// todo(jbr) speed up/slow down rather than doing ALL predicted ticks
-			while (tick_number < target_tick_number)
-			{
-				if (circular_index_is_full(&prediction_history_index))
-				{
-					circular_index_pop(&prediction_history_index);
-				}
-				uint32 tail = circular_index_tail(&prediction_history_index);
-				prediction_history_snapshot_state[tail] = *local_player_snapshot_state;
-				prediction_history_extra_state[tail] = *local_player_extra_state;
-				prediction_history_input[tail] = client_globals->player_input;
-				circular_index_push(&prediction_history_index);
+			uint32 index = prediction_id & c_prediction_history_mask;
+			prediction_history_dt[index]				= dt;
+			prediction_history_input[index]				= client_globals->player_input;
+			prediction_history_snapshot_state[index]	= *local_player_snapshot_state;
+			prediction_history_extra_state[index]		= *local_player_extra_state;
 
-				tick_player(local_player_snapshot_state, local_player_extra_state, &client_globals->player_input);
-				++tick_number;
-			}
+			++prediction_id;			
 
-			++target_tick_number;
-
-			// we're always the last player in the array
 			player_snapshot_states[local_player_slot] = *local_player_snapshot_state;
 		}
 
@@ -379,8 +341,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 		uint32 num_matrices = (uint32)(player_mvp_matrix - &mvp_matrices[1]);
 		Graphics::update_and_draw(graphics_state, mvp_matrices, num_matrices);
 
-
 		timer_wait_until(&tick_timer, c_seconds_per_tick, sleep_granularity_was_set);
+		timer_shift_start(&tick_timer, c_seconds_per_tick);
 	}
 
 	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, local_player_slot);
