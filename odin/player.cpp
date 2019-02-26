@@ -4,7 +4,10 @@
 
 
 
-void tick_player(Player_Snapshot_State* player_snapshot_state, Player_Extra_State* player_extra_state, float32 dt, Player_Input* player_input)
+void tick_player(	Player_Snapshot_State* player_snapshot_state, 
+					Player_Extra_State* player_extra_state, 
+					float32 dt, 
+					Player_Input* player_input)
 {
 	if (player_input->up)
 	{

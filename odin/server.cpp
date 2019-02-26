@@ -5,7 +5,7 @@
 
 
 
-void server_main(bool32 sleep_granularity_is_set)
+void server_main()
 {
 	// todo(jbr) option to create a window and render on server
 
@@ -51,104 +51,107 @@ void server_main(bool32 sleep_granularity_is_set)
 
 	while (true)
 	{
-		// read all available packets
-		uint32 bytes_received;
-		Net::IP_Endpoint from;
-		while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
+		while (timer_get_s(&tick_timer) < c_seconds_per_tick) // todo(jbr) make this loop friendly to cloud hypervisors
 		{
-			switch ((Net::Client_Message)socket_buffer[0])
+			// read all available packets
+			uint32 bytes_received;
+			Net::IP_Endpoint from;
+			while (Net::socket_receive(&sock, socket_buffer, c_socket_buffer_size, &bytes_received, &from))
 			{
-				case Net::Client_Message::Join:
+				switch ((Net::Client_Message)socket_buffer[0])
 				{
-					char from_str[22];
-					ip_endpoint_to_str(from_str, sizeof(from_str), &from);
-					log("[server] Client_Message::Join from %s\n", from_str);
-
-					uint32 slot = (uint32)-1;
-					for (uint32 i = 0; i < c_max_clients; ++i)
+					case Net::Client_Message::Join:
 					{
-						if (client_endpoints[i].address == 0)
+						char from_str[22];
+						ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+						log("[server] Client_Message::Join from %s\n", from_str);
+
+						uint32 slot = (uint32)-1;
+						for (uint32 i = 0; i < c_max_clients; ++i)
 						{
-							slot = i;
-							break;
+							if (client_endpoints[i].address == 0)
+							{
+								slot = i;
+								break;
+							}
 						}
-					}
 
 					
-					if (slot != (uint32)-1)
-					{
-						log("[server] client will be assigned to slot %hu\n", slot);
-
-						bool32 success = true;
-						uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
-						if (Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from))
+						if (slot != (uint32)-1)
 						{
-							client_endpoints[slot] = from;
-							time_since_heard_from_clients[slot] = 0.0f;
-							player_snapshot_states[slot] = {};
-							player_extra_states[slot] = {};
-							player_prediction_ids[slot] = 0;
+							log("[server] client will be assigned to slot %hu\n", slot);
+
+							bool32 success = true;
+							uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
+							if (Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from))
+							{
+								client_endpoints[slot] = from;
+								time_since_heard_from_clients[slot] = 0.0f;
+								player_snapshot_states[slot] = {};
+								player_extra_states[slot] = {};
+								player_prediction_ids[slot] = 0;
+							}
+						}
+						else
+						{
+							log("[server] could not find a slot for player\n");
+						
+							bool32 success = false;
+							uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
+							Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from);
 						}
 					}
-					else
+					break;
+
+					case Net::Client_Message::Leave:
 					{
-						log("[server] could not find a slot for player\n");
-						
-						bool32 success = false;
-						uint32 join_result_msg_size = Net::server_msg_join_result_write(socket_buffer, success, slot);
-						Net::socket_send(&sock, socket_buffer, join_result_msg_size, &from);
+						uint32 slot;
+						Net::client_msg_leave_read(socket_buffer, &slot);
+
+						if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
+						{
+							client_endpoints[slot] = {};
+							char from_str[22];
+							ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+							log("[server] Client_Message::Leave from %hu(%s)\n", slot, from_str);
+						}
+						else
+						{
+							char from_str[22];
+							char client_endpoint_str[22];
+							ip_endpoint_to_str(from_str, sizeof(from_str), &from);
+							ip_endpoint_to_str(client_endpoint_str, sizeof(client_endpoint_str), &client_endpoints[slot]);
+							log("[server] Client_Message::Leave from %hu(%s), espected (%s)\n", 
+								slot, from_str, client_endpoint_str);
+						}
 					}
+					break;
+
+					case Net::Client_Message::Input:
+					{
+						uint32 slot;
+						float32 dt;
+						Player_Input input;
+						uint32 prediction_id;
+						Net::client_msg_input_read(socket_buffer, &slot, &dt, &input, &prediction_id);
+
+						if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
+						{
+							player_prediction_ids[slot] = prediction_id;
+							time_since_heard_from_clients[slot] = 0.0f;
+							
+							tick_player(&player_snapshot_states[slot], &player_extra_states[slot], dt, &input);
+						}
+						else
+						{
+							log("[server] Client_Message::Input discarded, was from %u:%hu but expected %u:%hu\n", from.address, from.port, client_endpoints[slot].address, client_endpoints[slot].port);
+						}
+					}
+					break;
 				}
-				break;
-
-				case Net::Client_Message::Leave:
-				{
-					uint32 slot;
-					Net::client_msg_leave_read(socket_buffer, &slot);
-
-					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
-					{
-						client_endpoints[slot] = {};
-						char from_str[22];
-						ip_endpoint_to_str(from_str, sizeof(from_str), &from);
-						log("[server] Client_Message::Leave from %hu(%s)\n", slot, from_str);
-					}
-					else
-					{
-						char from_str[22];
-						char client_endpoint_str[22];
-						ip_endpoint_to_str(from_str, sizeof(from_str), &from);
-						ip_endpoint_to_str(client_endpoint_str, sizeof(client_endpoint_str), &client_endpoints[slot]);
-						log("[server] Client_Message::Leave from %hu(%s), espected (%s)\n", 
-							slot, from_str, client_endpoint_str);
-					}
-				}
-				break;
-
-				case Net::Client_Message::Input:
-				{
-					uint32 slot;
-					float32 dt;
-					Player_Input input;
-					uint32 prediction_id;
-					Net::client_msg_input_read(socket_buffer, &slot, &dt, &input, &prediction_id);
-
-					if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
-					{
-						player_prediction_ids[slot] = prediction_id;
-						time_since_heard_from_clients[slot] = 0.0f;
-
-						if(prediction_id % 200)
-						tick_player(&player_snapshot_states[slot], &player_extra_states[slot], dt, &input);
-					}
-					else
-					{
-						log("[server] Client_Message::Input discarded, was from %u:%hu but expected %u:%hu\n", from.address, from.port, client_endpoints[slot].address, client_endpoints[slot].port);
-					}
-				}
-				break;
 			}
 		}
+		timer_shift_start(&tick_timer, c_seconds_per_tick);
 		
 		// update clients
 		for (uint32 i = 0; i < c_max_clients; ++i)
@@ -180,9 +183,6 @@ void server_main(bool32 sleep_granularity_is_set)
 				}
 			}
 		}
-
-		timer_wait_until(&tick_timer, c_seconds_per_tick, sleep_granularity_is_set);
-		timer_shift_start(&tick_timer, c_seconds_per_tick);
 	}
 
 	Net::socket_close(&sock);

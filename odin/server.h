@@ -4,4 +4,4 @@
 
 
 
-void server_main(bool32 sleep_granularity_is_set);
+void server_main();
