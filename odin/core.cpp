@@ -193,46 +193,6 @@ void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3
 }
 
 
-// todo(jbr) can we lose circular index?
-Circular_Index circular_index(uint32 capacity)
-{
-	Circular_Index index;
-	index.head = 0;
-	index.size = 0;
-	index.capacity = capacity;
-	return index;
-}
-
-bool32 circular_index_is_full(Circular_Index* index)
-{
-	return index->size == index->capacity;
-}
-
-void circular_index_push(Circular_Index* index)
-{
-	assert(!circular_index_is_full(index));
-
-	++index->size;
-}
-
-void circular_index_pop(Circular_Index* index)
-{
-	assert(index->size);
-
-	index->head = (index->head + 1) % index->capacity;
-	--index->size;
-}
-
-uint32 circular_index_tail(Circular_Index* index)
-{
-	return circular_index_iterator(index, index->size);
-}
-
-uint32 circular_index_iterator(Circular_Index* index, uint32 offset)
-{
-	return (index->head + offset) % index->capacity;
-}
-
 Timer timer()
 {
 	Timer timer = {};

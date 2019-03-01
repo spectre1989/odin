@@ -181,9 +181,7 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 
 void socket_set_fake_lag_s(	Socket* /*sock*/, 
 							float32 /*fake_lag_s*/, 
-							uint32 /*max_packets_in_per_sec*/, 
-							uint32 /*max_packets_out_per_sec*/, 
-							uint32 /*max_packet_size*/)
+							Linear_Allocator* /*allocator*/)
 {
 }
 
@@ -191,21 +189,28 @@ void socket_set_fake_lag_s(	Socket* /*sock*/,
 } // namespace Internal
 
 
-static Packet_Buffer packet_buffer(uint32 max_packets, uint32 max_packet_size)
+constexpr uint32 c_packet_buffer_capacity = 512;
+constexpr uint32 c_packet_buffer_mask = c_packet_buffer_capacity - 1;
+
+static LARGE_INTEGER clock_frequency;
+
+static Packet_Buffer packet_buffer(Linear_Allocator* allocator)
 {
+	QueryPerformanceFrequency(&clock_frequency);
+
 	Packet_Buffer packet_buffer = {};
-	packet_buffer.index = circular_index(max_packets);
-	packet_buffer.max_packet_size = max_packet_size;
-	packet_buffer.packets = alloc_permanent(max_packets * max_packet_size);
-	packet_buffer.packet_sizes = (uint32*)alloc_permanent(sizeof(uint32) * max_packets);
-	packet_buffer.endpoints = (IP_Endpoint*)alloc_permanent(sizeof(IP_Endpoint) * max_packets);
-	packet_buffer.times = (LARGE_INTEGER*)alloc_permanent(sizeof(LARGE_INTEGER) * max_packets);
+	packet_buffer.index = 0;
+	packet_buffer.size = 0;
+	packet_buffer.packets =							linear_allocator_alloc(allocator, c_packet_buffer_capacity * c_packet_budget_per_tick);
+	packet_buffer.packet_sizes =	(uint32*)		linear_allocator_alloc(allocator, sizeof(uint32) * c_packet_buffer_capacity);
+	packet_buffer.endpoints =		(IP_Endpoint*)	linear_allocator_alloc(allocator, sizeof(IP_Endpoint) * c_packet_buffer_capacity);
+	packet_buffer.times =			(LARGE_INTEGER*)linear_allocator_alloc(allocator, sizeof(LARGE_INTEGER) * c_packet_buffer_capacity);
 	return packet_buffer;
 }
 
 static bool32 packet_buffer_is_full(Packet_Buffer* packet_buffer)
 {
-	return circular_index_is_full(&packet_buffer->index);
+	return packet_buffer->size == c_packet_buffer_capacity;
 }
 
 static void packet_buffer_push(Packet_Buffer* packet_buffer, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint, float32 fake_lag_s)
@@ -216,44 +221,47 @@ static void packet_buffer_push(Packet_Buffer* packet_buffer, uint8* packet, uint
 	QueryPerformanceCounter(&now);
 
 	LARGE_INTEGER then;
-	then.QuadPart = now.QuadPart + (LONGLONG)(globals->clock_frequency.QuadPart * fake_lag_s);
+	then.QuadPart = now.QuadPart + (LONGLONG)(clock_frequency.QuadPart * fake_lag_s);
 
-	uint32 tail = circular_index_tail(&packet_buffer->index);
-	packet_buffer->times[tail] = then;
-	packet_buffer->packet_sizes[tail] = packet_size;
-	packet_buffer->endpoints[tail] = *endpoint;
+	uint32 index = packet_buffer->index;
+	packet_buffer->times[index] = then;
+	packet_buffer->packet_sizes[index] = packet_size;
+	packet_buffer->endpoints[index] = *endpoint;
 
-	uint8* dst_packet = &packet_buffer->packets[tail * packet_buffer->max_packet_size];
+	uint8* dst_packet = &packet_buffer->packets[index * c_packet_budget_per_tick];
 	memcpy(dst_packet, packet, packet_size);
 
-	circular_index_push(&packet_buffer->index);
+	++packet_buffer->size;
+	packet_buffer->index = (packet_buffer->index + 1) & c_packet_buffer_mask;
 }
 
 static void packet_buffer_force_pop(Packet_Buffer* packet_buffer, uint8** out_packet, uint32* out_packet_size, IP_Endpoint* out_endpoint)
 {
-	assert(packet_buffer->index.size);
+	assert(packet_buffer->size);
 
-	*out_packet = &packet_buffer->packets[packet_buffer->index.head * packet_buffer->max_packet_size]; 
-	*out_packet_size = packet_buffer->packet_sizes[packet_buffer->index.head];
-	*out_endpoint = packet_buffer->endpoints[packet_buffer->index.head];
+	uint32 index = (packet_buffer->index - packet_buffer->size) & c_packet_buffer_mask;
+	*out_packet = &packet_buffer->packets[index * c_packet_budget_per_tick]; 
+	*out_packet_size = packet_buffer->packet_sizes[index];
+	*out_endpoint = packet_buffer->endpoints[index];
 
-	circular_index_pop(&packet_buffer->index);
+	--packet_buffer->size;
 }
 
 static bool32 packet_buffer_pop(Packet_Buffer* packet_buffer, uint8** out_packet, uint32* out_packet_size, IP_Endpoint* out_endpoint)
 {
-	assert(packet_buffer->index.size);
+	assert(packet_buffer->size);
 
 	LARGE_INTEGER now;
 	QueryPerformanceCounter(&now);
 
-	if (packet_buffer->times[packet_buffer->index.head].QuadPart <= now.QuadPart)
+	uint32 index = (packet_buffer->index - packet_buffer->size) & c_packet_buffer_mask;
+	if (packet_buffer->times[index].QuadPart <= now.QuadPart)
 	{
-		*out_packet = &packet_buffer->packets[packet_buffer->index.head * packet_buffer->max_packet_size]; 
-		*out_packet_size = packet_buffer->packet_sizes[packet_buffer->index.head];
-		*out_endpoint = packet_buffer->endpoints[packet_buffer->index.head];
+		*out_packet = &packet_buffer->packets[index * c_packet_budget_per_tick]; 
+		*out_packet_size = packet_buffer->packet_sizes[index];
+		*out_endpoint = packet_buffer->endpoints[index];
 
-		circular_index_pop(&packet_buffer->index);
+		--packet_buffer->size;
 
 		return true;
 	}
@@ -278,7 +286,7 @@ bool32 socket(Socket* sock)
 
 void socket_close(Socket* sock)
 {
-	while (sock->send_buffer.index.size)
+	while (sock->send_buffer.size)
 	{
 		uint8* packet;
 		uint32 packet_size;
@@ -288,6 +296,17 @@ void socket_close(Socket* sock)
 	}
 
 	Internal::socket_close(&sock->sock);
+}
+
+bool32 socket_bind(Socket* sock, IP_Endpoint* local_endpoint)
+{
+	if (Internal::socket_bind(&sock->sock, local_endpoint))
+	{
+		sock->can_receive = 1;
+		return true;
+	}
+
+	return false;
 }
 
 bool32 socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint* endpoint)
@@ -313,15 +332,15 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 	uint32 packet_size;
 	IP_Endpoint endpoint;
 	uint8* packet;
-	while (sock->send_buffer.index.size &&
+	while (sock->send_buffer.size &&
 			packet_buffer_pop(&sock->send_buffer, &packet, &packet_size, &endpoint))
 	{
 		bool32 success = Internal::socket_send(&sock->sock, packet, packet_size, &endpoint);
 		assert(success);
-		sock->has_sent_at_least_one_packet = 1;
+		sock->can_receive = 1;
 	}
 
-	if (!sock->has_sent_at_least_one_packet)
+	if (!sock->can_receive)
 	{
 		return false;
 	}
@@ -337,7 +356,7 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 		packet_buffer_push(&sock->recv_buffer, buffer, packet_size, &endpoint, sock->fake_lag_s);
 	}
 
-	if (sock->recv_buffer.index.size &&
+	if (sock->recv_buffer.size &&
 		packet_buffer_pop(&sock->recv_buffer, &packet, out_packet_size, out_from))
 	{
 		memcpy(buffer, packet, *out_packet_size);
@@ -348,13 +367,11 @@ bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* o
 
 void socket_set_fake_lag_s(	Socket* sock, 
 							float32 fake_lag_s, 
-							uint32 max_packets_in_per_sec, 
-							uint32 max_packets_out_per_sec, 
-							uint32 max_packet_size)
+							Linear_Allocator* allocator)
 {
 	sock->fake_lag_s = fake_lag_s;
-	sock->send_buffer = packet_buffer((uint32)((max_packets_out_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
-	sock->recv_buffer = packet_buffer((uint32)((max_packets_in_per_sec * fake_lag_s * 1.1f) + 2), max_packet_size);
+	sock->send_buffer = packet_buffer(allocator);
+	sock->recv_buffer = packet_buffer(allocator);
 }
 
 #endif // #ifdef FAKE_LAG

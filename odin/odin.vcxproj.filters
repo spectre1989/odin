@@ -57,11 +57,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="shaders\shader.frag">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="shaders\shader.vert">
-      <Filter>Shaders</Filter>
-    </None>
+    <CustomBuild Include="shaders\shader.frag" />
+    <CustomBuild Include="shaders\shader.vert" />
   </ItemGroup>
 </Project>

@@ -92,20 +92,6 @@ void matrix_4x4_mul(Matrix_4x4* result, Matrix_4x4* a, Matrix_4x4* b);
 void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3f up);
 
 
-struct Circular_Index
-{
-	uint32 head;
-	uint32 size;
-	uint32 capacity;
-};
-Circular_Index circular_index(uint32 capacity);
-bool32 circular_index_is_full(Circular_Index* index);
-void circular_index_push(Circular_Index* index);
-void circular_index_pop(Circular_Index* index);
-uint32 circular_index_tail(Circular_Index* index);
-uint32 circular_index_iterator(Circular_Index* index, uint32 offset);
-
-
 struct Timer
 {
 	LARGE_INTEGER start;

@@ -9,12 +9,16 @@ void server_main()
 {
 	// todo(jbr) option to create a window and render on server
 
+	Linear_Allocator allocator;
+	linear_allocator_create(&allocator, megabytes(8));
+
 	Net::Socket sock;
 	if (!Net::socket(&sock))
 	{
 		log("[server] Net::socket() failed");
 		return;
 	}
+	Net::socket_set_fake_lag_s(&sock, 0.0f, &allocator); // no fake lag on server
 
 	Net::IP_Endpoint local_endpoint = {};
 	local_endpoint.address = INADDR_ANY;
@@ -24,9 +28,6 @@ void server_main()
 		log("[server] Net::socket_bind() failed");
 		return;
 	}
-
-	Linear_Allocator allocator;
-	linear_allocator_create(&allocator, megabytes(8));
 
 	constexpr uint32	c_socket_buffer_size	= c_packet_budget_per_tick;
 	uint8*				socket_buffer			= linear_allocator_alloc(&allocator, c_socket_buffer_size);

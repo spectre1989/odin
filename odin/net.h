@@ -39,8 +39,8 @@ namespace Internal
 
 struct Packet_Buffer
 {
-	Circular_Index index;
-	uint32 max_packet_size;
+	uint32 index;
+	uint32 size;
 	uint8* packets;
 	uint32* packet_sizes;
 	IP_Endpoint* endpoints;
@@ -57,7 +57,7 @@ struct Socket
 	float32 fake_lag_s;
 	Packet_Buffer send_buffer;
 	Packet_Buffer recv_buffer;
-	bool32 has_sent_at_least_one_packet;
+	bool32 can_receive;
 };
 
 #endif // #ifdef FAKE_LAG
@@ -69,9 +69,7 @@ bool32 socket_send(Socket* sock, uint8* packet, uint32 packet_size, IP_Endpoint*
 bool32 socket_receive(Socket* sock, uint8* buffer, uint32 buffer_size, uint32* out_packet_size, IP_Endpoint* out_from);
 void socket_set_fake_lag_s(	Socket* sock, 
 							float32 fake_lag_s, 
-							uint32 max_packets_in_per_sec, 
-							uint32 max_packets_out_per_sec, 
-							uint32 max_packet_size);
+							Linear_Allocator* allocator);
 
 
 } // namespace Net
