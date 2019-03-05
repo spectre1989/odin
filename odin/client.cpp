@@ -1,7 +1,8 @@
 // std
-#include <math.h>
-#include <stdio.h>
-#include <time.h>
+#include <atomic>
+#include <cmath>
+#include <cstdio>
+#include <ctime>
 #include <thread>
 // odin
 #include "core.h"
@@ -115,7 +116,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 		return 0;
 	}
 
-	std::thread server_thread(&server_main); // todo(jbr) shut this thread down correctly
+	std::atomic_bool server_should_run = true;
+	std::thread server_thread(&server_main, &server_should_run);
 
 	Linear_Allocator allocator;
 	linear_allocator_create(&allocator, megabytes(16));
@@ -234,7 +236,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 						player_snapshot_states, 
 						players_present,
 						c_max_clients);
-					
+
 					int32 ticks_ahead = prediction_id - received_prediction_id;
 					assert(ticks_ahead > -1);
 					assert(ticks_ahead < c_prediction_history_capacity); // todo(jbr) cope better with this case
@@ -250,7 +252,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 					if (error_sq > c_max_error_sq)
 					{
 						log("[client]error of %f detected at prediction id %d, rewinding and replaying\n", sqrtf(error_sq), received_prediction_id);
-
+						
 						prediction_history_snapshot_state[index] = *received_local_player_snapshot_state;
 						prediction_history_extra_state[index] = received_local_player_extra_state;
 
@@ -282,26 +284,29 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 		{
 			float32 dt = c_seconds_per_tick;
 			
+			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &client_globals->player_input, prediction_id);
+			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
+
 			uint32 current_index = prediction_id & c_prediction_history_mask;
 			uint32 next_index = (prediction_id + 1) & c_prediction_history_mask;
 
 			prediction_history_dt[current_index]	= dt;
 			prediction_history_input[current_index]	= client_globals->player_input;
 
-			prediction_history_snapshot_state[next_index] = prediction_history_snapshot_state[current_index];
-			prediction_history_extra_state[next_index] = prediction_history_extra_state[current_index];
-			// todo(jbr) LHS?
-			tick_player(&prediction_history_snapshot_state[next_index], 
-						&prediction_history_extra_state[next_index], 
+			Player_Snapshot_State player_snapshot_state = prediction_history_snapshot_state[current_index];
+			Player_Extra_State player_extra_state = prediction_history_extra_state[current_index];
+
+			tick_player(&player_snapshot_state, 
+						&player_extra_state, 
 						dt, 
 						&client_globals->player_input);
 
-			player_snapshot_states[local_player_slot] = prediction_history_snapshot_state[next_index];
+			prediction_history_snapshot_state[next_index] = player_snapshot_state;
+			prediction_history_extra_state[next_index] = player_extra_state;
+
+			player_snapshot_states[local_player_slot] = player_snapshot_state;
 
 			++prediction_id;
-
-			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &client_globals->player_input, prediction_id);
-			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
 		}
 
 		Player_Snapshot_State* local_player_snapshot_state = &prediction_history_snapshot_state[prediction_id & c_prediction_history_mask];
@@ -358,6 +363,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	uint32 leave_msg_size = Net::client_msg_leave_write(socket_buffer, local_player_slot);
 	Net::socket_send(&sock, socket_buffer, leave_msg_size, &server_endpoint);
 	Net::socket_close(&sock);
+
+	server_should_run = false;
+	server_thread.join();
 
 	return exit_code;
 }

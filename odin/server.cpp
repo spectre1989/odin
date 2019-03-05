@@ -1,3 +1,5 @@
+#include "server.h"
+
 #include "core.h"
 #include "net.h"
 #include "net_msgs.h"
@@ -5,7 +7,7 @@
 
 
 
-void server_main()
+void server_main(std::atomic_bool* should_run)
 {
 	// todo(jbr) option to create a window and render on server
 
@@ -50,7 +52,7 @@ void server_main()
 	constexpr float32 c_seconds_per_tick = 1.0f / c_tick_rate;
 	constexpr float32 c_client_timeout 	= 5.0f;
 
-	while (true)
+	while (should_run->load(std::memory_order_relaxed))
 	{
 		while (timer_get_s(&tick_timer) < c_seconds_per_tick) // todo(jbr) make this loop friendly to cloud hypervisors
 		{
@@ -138,10 +140,14 @@ void server_main()
 
 						if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 						{
-							player_prediction_ids[slot] = prediction_id;
-							time_since_heard_from_clients[slot] = 0.0f;
+							assert(player_prediction_ids[slot] == prediction_id);
 							
 							tick_player(&player_snapshot_states[slot], &player_extra_states[slot], dt, &input);
+
+							// for this player we've simulated tick "prediction_id", so we're now on "prediction_id + 1"
+							player_prediction_ids[slot] = prediction_id + 1; 
+
+							time_since_heard_from_clients[slot] = 0.0f;
 						}
 						else
 						{
