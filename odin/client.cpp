@@ -253,25 +253,28 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 					{
 						log("[client]error of %f detected at prediction id %d, rewinding and replaying\n", sqrtf(error_sq), received_prediction_id);
 						
-						prediction_history_snapshot_state[index] = *received_local_player_snapshot_state;
-						prediction_history_extra_state[index] = received_local_player_extra_state;
+						Player_Snapshot_State snapshot_state = *received_local_player_snapshot_state;
+						Player_Extra_State extra_state = received_local_player_extra_state;
 
 						for (uint32 replaying_prediction_id = received_prediction_id; 
 							replaying_prediction_id < prediction_id; 
 							++replaying_prediction_id)
 						{
-							uint32 next_index = (replaying_prediction_id + 1) & c_prediction_history_mask;
+							index = replaying_prediction_id & c_prediction_history_mask;
 
-							prediction_history_snapshot_state[next_index] = prediction_history_snapshot_state[index];
-							prediction_history_extra_state[next_index] = prediction_history_extra_state[index];
+							prediction_history_snapshot_state[index] = snapshot_state;
+							prediction_history_extra_state[index] = extra_state;
 
-							tick_player(&prediction_history_snapshot_state[next_index], 
-										&prediction_history_extra_state[next_index], 
+							tick_player(&snapshot_state, 
+										&extra_state, 
 										prediction_history_dt[index], 
 										&prediction_history_input[index]);
-									
-							index = next_index;
 						}
+
+						index = prediction_id & c_prediction_history_mask;
+
+						prediction_history_snapshot_state[index] = snapshot_state;
+						prediction_history_extra_state[index] = extra_state;
 					}
 				}
 				break;
