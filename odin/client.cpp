@@ -260,15 +260,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 							replaying_prediction_id < prediction_id; 
 							++replaying_prediction_id)
 						{
-							index = replaying_prediction_id & c_prediction_history_mask;
+							uint32 replaying_index = replaying_prediction_id & c_prediction_history_mask;
 
-							prediction_history_snapshot_state[index] = snapshot_state;
-							prediction_history_extra_state[index] = extra_state;
+							prediction_history_snapshot_state[replaying_index] = snapshot_state;
+							prediction_history_extra_state[replaying_index] = extra_state;
 
 							tick_player(&snapshot_state, 
 										&extra_state, 
-										prediction_history_dt[index], 
-										&prediction_history_input[index]);
+										prediction_history_dt[replaying_index], 
+										&prediction_history_input[replaying_index]);
 						}
 
 						index = prediction_id & c_prediction_history_mask;
