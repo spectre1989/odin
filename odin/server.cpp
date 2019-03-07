@@ -140,13 +140,9 @@ void server_main(std::atomic_bool* should_run)
 
 						if (Net::ip_endpoint_equals(&client_endpoints[slot], &from))
 						{
-							assert(player_prediction_ids[slot] == prediction_id);
-							
 							tick_player(&player_snapshot_states[slot], &player_extra_states[slot], dt, &input);
-
-							// for this player we've simulated tick "prediction_id", so we're now on "prediction_id + 1"
-							player_prediction_ids[slot] = prediction_id + 1; 
-
+							
+							player_prediction_ids[slot] = prediction_id; 
 							time_since_heard_from_clients[slot] = 0.0f;
 						}
 						else

@@ -157,6 +157,9 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	bool32* players_present							= (bool32*)					linear_allocator_alloc(&allocator, sizeof(bool32) * c_max_clients);
 	Matrix_4x4* mvp_matrices						= (Matrix_4x4*)				linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
 
+	Player_Snapshot_State*	local_player_snapshot_state			= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
+	Player_Extra_State*		local_player_extra_state			= (Player_Extra_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
+
 	constexpr int32			c_prediction_history_capacity		= 512;
 	constexpr int32			c_prediction_history_mask			= c_prediction_history_capacity - 1;
 	Player_Snapshot_State*	prediction_history_snapshot_state	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
@@ -239,7 +242,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 					int32 ticks_ahead = prediction_id - received_prediction_id;
 					assert(ticks_ahead > -1);
-					assert(ticks_ahead < c_prediction_history_capacity); // todo(jbr) cope better with this case
+					assert(ticks_ahead <= c_prediction_history_capacity); // todo(jbr) cope better with this case
 					
 					Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
 
@@ -253,28 +256,23 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 					{
 						log("[client]error of %f detected at prediction id %d, rewinding and replaying\n", sqrtf(error_sq), received_prediction_id);
 						
-						Player_Snapshot_State snapshot_state = *received_local_player_snapshot_state;
-						Player_Extra_State extra_state = received_local_player_extra_state;
+						*local_player_snapshot_state = *received_local_player_snapshot_state;
+						*local_player_extra_state = received_local_player_extra_state;
 
-						for (uint32 replaying_prediction_id = received_prediction_id; 
+						for (uint32 replaying_prediction_id = received_prediction_id + 1; 
 							replaying_prediction_id < prediction_id; 
 							++replaying_prediction_id)
 						{
 							uint32 replaying_index = replaying_prediction_id & c_prediction_history_mask;
 
-							prediction_history_snapshot_state[replaying_index] = snapshot_state;
-							prediction_history_extra_state[replaying_index] = extra_state;
-
-							tick_player(&snapshot_state, 
-										&extra_state, 
+							tick_player(local_player_snapshot_state, 
+										local_player_extra_state, 
 										prediction_history_dt[replaying_index], 
 										&prediction_history_input[replaying_index]);
+
+							prediction_history_snapshot_state[replaying_index] = *local_player_snapshot_state;
+							prediction_history_extra_state[replaying_index] = *local_player_extra_state;
 						}
-
-						index = prediction_id & c_prediction_history_mask;
-
-						prediction_history_snapshot_state[index] = snapshot_state;
-						prediction_history_extra_state[index] = extra_state;
 					}
 				}
 				break;
@@ -290,29 +288,21 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &client_globals->player_input, prediction_id);
 			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
 
-			uint32 current_index = prediction_id & c_prediction_history_mask;
-			uint32 next_index = (prediction_id + 1) & c_prediction_history_mask;
-
-			prediction_history_dt[current_index]	= dt;
-			prediction_history_input[current_index]	= client_globals->player_input;
-
-			Player_Snapshot_State player_snapshot_state = prediction_history_snapshot_state[current_index];
-			Player_Extra_State player_extra_state = prediction_history_extra_state[current_index];
-
-			tick_player(&player_snapshot_state, 
-						&player_extra_state, 
+			tick_player(local_player_snapshot_state, 
+						local_player_extra_state, 
 						dt, 
 						&client_globals->player_input);
 
-			prediction_history_snapshot_state[next_index] = player_snapshot_state;
-			prediction_history_extra_state[next_index] = player_extra_state;
-
-			player_snapshot_states[local_player_slot] = player_snapshot_state;
+			uint32 index = prediction_id & c_prediction_history_mask;
+			prediction_history_snapshot_state[index]	= *local_player_snapshot_state;
+			prediction_history_extra_state[index]		= *local_player_extra_state;
+			prediction_history_dt[index]				= dt;
+			prediction_history_input[index]				= client_globals->player_input;
+			
+			player_snapshot_states[local_player_slot] = *local_player_snapshot_state;
 
 			++prediction_id;
 		}
-
-		Player_Snapshot_State* local_player_snapshot_state = &prediction_history_snapshot_state[prediction_id & c_prediction_history_mask];
 
 		// Create view-projection matrix
 		constexpr float32 c_camera_offset_distance = 3.0f;
