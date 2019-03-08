@@ -158,14 +158,22 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	Matrix_4x4* mvp_matrices						= (Matrix_4x4*)				linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
 
 	Player_Snapshot_State*	local_player_snapshot_state			= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
-	Player_Extra_State*		local_player_extra_state			= (Player_Extra_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
+	Player_Extra_State*		local_player_extra_state			= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
 
-	constexpr int32			c_prediction_history_capacity		= 512;
-	constexpr int32			c_prediction_history_mask			= c_prediction_history_capacity - 1;
-	Player_Snapshot_State*	prediction_history_snapshot_state	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_prediction_history_capacity);
-	Player_Extra_State*		prediction_history_extra_state		= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State) * c_prediction_history_capacity);
-	float32*				prediction_history_dt				= (float32*)				linear_allocator_alloc(&allocator, sizeof(float32) * c_prediction_history_capacity);
-	Player_Input*			prediction_history_input			= (Player_Input*)			linear_allocator_alloc(&allocator, sizeof(Player_Input) * c_prediction_history_capacity);
+	struct Predicted_Move
+	{
+		float32 dt;
+		Player_Input input;
+	};
+	struct Predicted_Move_Result
+	{
+		Player_Snapshot_State snapshot_state;
+		Player_Extra_State extra_state;
+	};
+	constexpr int32			c_prediction_buffer_capacity	= 512;
+	constexpr int32			c_prediction_buffer_mask		= c_prediction_buffer_capacity - 1;
+	Predicted_Move*			predicted_move					= (Predicted_Move*)linear_allocator_alloc(&allocator, sizeof(Predicted_Move) * c_prediction_buffer_capacity);
+	Predicted_Move_Result*	predicted_move_result			= (Predicted_Move_Result*)linear_allocator_alloc(&allocator, sizeof(Predicted_Move_Result) * c_prediction_buffer_capacity);
 
 	constexpr float32	c_fov_y			= 60.0f * c_deg_to_rad;
 	constexpr float32	c_aspect_ratio	= c_window_width / (float32)c_window_height;
@@ -242,13 +250,13 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 					int32 ticks_ahead = prediction_id - received_prediction_id;
 					assert(ticks_ahead > -1);
-					assert(ticks_ahead <= c_prediction_history_capacity); // todo(jbr) cope better with this case
+					assert(ticks_ahead <= c_prediction_buffer_capacity); // todo(jbr) cope better with this case
 					
 					Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
 
-					uint32 index = received_prediction_id & c_prediction_history_mask;
-					float32 dx = prediction_history_snapshot_state[index].x - received_local_player_snapshot_state->x;
-					float32 dy = prediction_history_snapshot_state[index].y - received_local_player_snapshot_state->y;
+					uint32 index = received_prediction_id & c_prediction_buffer_mask;
+					float32 dx = predicted_move_result[index].snapshot_state.x - received_local_player_snapshot_state->x;
+					float32 dy = predicted_move_result[index].snapshot_state.y - received_local_player_snapshot_state->y;
 					constexpr float32 c_max_error = 0.001f; // 0.1cm
 					constexpr float32 c_max_error_sq = c_max_error * c_max_error;
 					float32 error_sq = (dx * dx) + (dy * dy);
@@ -263,15 +271,18 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 							replaying_prediction_id < prediction_id; 
 							++replaying_prediction_id)
 						{
-							uint32 replaying_index = replaying_prediction_id & c_prediction_history_mask;
+							uint32					replaying_index			= replaying_prediction_id & c_prediction_buffer_mask;
+
+							Predicted_Move*			replaying_move			= &predicted_move[replaying_index];
+							Predicted_Move_Result*	replaying_move_result	= &predicted_move_result[replaying_index];
 
 							tick_player(local_player_snapshot_state, 
 										local_player_extra_state, 
-										prediction_history_dt[replaying_index], 
-										&prediction_history_input[replaying_index]);
+										replaying_move->dt, 
+										&replaying_move->input);
 
-							prediction_history_snapshot_state[replaying_index] = *local_player_snapshot_state;
-							prediction_history_extra_state[replaying_index] = *local_player_extra_state;
+							replaying_move_result->snapshot_state = *local_player_snapshot_state;
+							replaying_move_result->extra_state = *local_player_extra_state;
 						}
 					}
 				}
@@ -293,11 +304,15 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 						dt, 
 						&client_globals->player_input);
 
-			uint32 index = prediction_id & c_prediction_history_mask;
-			prediction_history_snapshot_state[index]	= *local_player_snapshot_state;
-			prediction_history_extra_state[index]		= *local_player_extra_state;
-			prediction_history_dt[index]				= dt;
-			prediction_history_input[index]				= client_globals->player_input;
+			uint32					index	= prediction_id & c_prediction_buffer_mask;
+
+			Predicted_Move*			move	= &predicted_move[index];
+			Predicted_Move_Result*	result	= &predicted_move_result[index];
+
+			move->dt						= dt;
+			move->input						= client_globals->player_input;
+			result->snapshot_state			= *local_player_snapshot_state;
+			result->extra_state				= *local_player_extra_state;
 			
 			player_snapshot_states[local_player_slot] = *local_player_snapshot_state;
 
