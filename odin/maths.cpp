@@ -28,6 +28,11 @@ Vec_3f vec_3f_mul(Vec_3f v, float32 f)
 	return vec_3f(v.x * f, v.y * f, v.z * f);
 }
 
+float32 vec_3f_length_sq(Vec_3f v)
+{
+	return (v.x * v.x) + (v.y * v.y) + (v.z * v.z);
+}
+
 Vec_3f vec_3f_normalised(Vec_3f v)
 {
 	float32 length_sq = (v.x * v.x) + (v.y * v.y) + (v.z * v.z);
@@ -40,7 +45,7 @@ Vec_3f vec_3f_normalised(Vec_3f v)
 	return v;
 }
 
-float vec_3f_dot(Vec_3f a, Vec_3f b)
+float32 vec_3f_dot(Vec_3f a, Vec_3f b)
 {
 	return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
 }
@@ -105,6 +110,29 @@ Quat quat_mul(Quat a, Quat b)
 	float32 scalar = (b.scalar * a.scalar) + (-1.0f * b.zy * a.zy) + (-1.0f * b.xz * a.xz) + (-1.0f * a.yx * b.yx);
 
 	return quat(zy, xz, yx, scalar);
+}
+
+Vec_3f quat_right(Quat q)
+{
+	// todo(jbr) on quat simplification, would it be a good idea to cache the square of each component in the struct?
+	// we can be faster than quat_mul because we know 2 components of each axis is 0
+	return vec_3f(	(q.scalar * q.scalar) + (-q.zy * -q.zy) + (-1.0f * -q.xz * -q.xz) + (-1.0f * q.yx * q.yx),
+					(2.0f * q.scalar * q.yx) + (2.0f * -q.zy * -q.xz),
+					(-2.0f * q.scalar * -q.xz) + (2.0f * -q.zy * q.yx));
+}
+
+Vec_3f quat_forward(Quat q)
+{
+	return vec_3f(	(-2.0f * q.scalar * q.yx) + (2.0f * -q.zy * -q.xz),
+					(q.scalar * q.scalar) + (-1.0f * -q.zy * -q.zy) + (-q.xz * -q.xz) + (-1.0f * q.yx * q.yx),
+					(2.0f * q.scalar * -q.zy) + (2.0f * -q.xz * q.yx));
+}
+
+Vec_3f quat_up(Quat q)
+{
+	return vec_3f(	(2.0f * q.scalar * -q.xz) + (2.0f * -q.zy * q.yx),
+					(-2.0f * q.scalar * -q.zy) + (2.0f * -q.xz * q.yx),
+					(q.scalar * q.scalar) + (-1.0f * -q.zy * -q.zy) + (-1.0f * -q.xz * -q.xz) + (q.yx * q.yx));
 }
 
 
@@ -307,7 +335,7 @@ Vec_3f matrix_4x4_mul_direction(Matrix_4x4* matrix, Vec_3f v)
 					(v.x * matrix->m31) + (v.y * matrix->m32) + (v.z * matrix->m33));
 }
 
-void matrix_4x4_camera(Matrix_4x4* matrix, Vec_3f position, Vec_3f forward, Vec_3f up, Vec_3f right)
+void matrix_4x4_camera(Matrix_4x4* matrix, Vec_3f position, Vec_3f right, Vec_3f forward, Vec_3f up)
 {
 	// need to use camera position as the effective origin,
 	// so negate position to give that translation
@@ -338,5 +366,5 @@ void matrix_4x4_lookat(Matrix_4x4* matrix, Vec_3f position, Vec_3f target, Vec_3
 	Vec_3f view_up = vec_3f_normalised(vec_3f_sub(up, project_up_onto_forward));
 	Vec_3f view_right = vec_3f_cross(view_forward, view_up);
 
-	matrix_4x4_camera(matrix, position, view_forward, view_up, view_right);
+	matrix_4x4_camera(matrix, position, view_right, view_forward, view_up);
 }

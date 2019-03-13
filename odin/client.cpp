@@ -155,7 +155,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 	Player_Snapshot_State* player_snapshot_states	= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State) * c_max_clients);
 	bool32* players_present							= (bool32*)					linear_allocator_alloc(&allocator, sizeof(bool32) * c_max_clients);
-	Matrix_4x4* mvp_matrices						= (Matrix_4x4*)				linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1));
+	Matrix_4x4* mvp_matrices						= (Matrix_4x4*)				linear_allocator_alloc(&allocator, sizeof(Matrix_4x4) * (c_max_clients + 1)); // todo(jbr) all these arrays should be named singular not plural
 
 	Player_Snapshot_State*	local_player_snapshot_state			= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
 	Player_Extra_State*		local_player_extra_state			= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
@@ -255,14 +255,12 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 					Player_Snapshot_State* received_local_player_snapshot_state = &player_snapshot_states[local_player_slot];
 
 					uint32 index = received_prediction_id & c_prediction_buffer_mask;
-					float32 dx = predicted_move_result[index].snapshot_state.x - received_local_player_snapshot_state->x;
-					float32 dy = predicted_move_result[index].snapshot_state.y - received_local_player_snapshot_state->y;
+					Vec_3f delta_pos = vec_3f_sub(received_local_player_snapshot_state->position, predicted_move_result[index].snapshot_state.position);
 					constexpr float32 c_max_error = 0.001f; // 0.1cm
 					constexpr float32 c_max_error_sq = c_max_error * c_max_error;
-					float32 error_sq = (dx * dx) + (dy * dy);
-					if (error_sq > c_max_error_sq)
+					if (vec_3f_length_sq(delta_pos) > c_max_error_sq)
 					{
-						log("[client]error of %f detected at prediction id %d, rewinding and replaying\n", sqrtf(error_sq), received_prediction_id);
+						log("[client]error of (%f, %f, %f) detected at prediction id %d, rewinding and replaying\n", delta_pos.x, delta_pos.y, delta_pos.z, received_prediction_id);
 						
 						*local_player_snapshot_state = *received_local_player_snapshot_state;
 						*local_player_extra_state = received_local_player_extra_state;
@@ -321,17 +319,18 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 		// Create view-projection matrix
 		constexpr float32 c_camera_offset_distance = 3.0f;
-		Vec_3f camera_pos = vec_3f(
-			local_player_snapshot_state->x + (c_camera_offset_distance * sinf(local_player_snapshot_state->facing)), 
-			local_player_snapshot_state->y - (c_camera_offset_distance * cosf(local_player_snapshot_state->facing)), 
-			1.0f);
-		Vec_3f player_pos = vec_3f(local_player_snapshot_state->x, local_player_snapshot_state->y, 0.0f);
+		Vec_3f camera_pos = local_player_snapshot_state->position;
+		camera_pos.z += 1.8f;
+
+		Quat camera_rotation = quat_mul(quat_angle_axis(vec_3f(0.0f, 0.0f, 1.0f), local_player_snapshot_state->yaw),
+										quat_angle_axis(vec_3f(1.0f, 0.0f, 0.0f), local_player_snapshot_state->pitch)); // pitch THEN yaw
 		
 		Matrix_4x4 view_matrix;
-		matrix_4x4_lookat(	&view_matrix, 
-							camera_pos, 				// position
-							player_pos, 				// target
-							vec_3f(0.0f, 0.0f, 1.0f)); 	// up
+		matrix_4x4_camera(	&view_matrix,
+							camera_pos,
+							quat_right(camera_rotation),
+							quat_forward(camera_rotation),
+							quat_up(camera_rotation));
 		
 		Matrix_4x4 view_projection_matrix;
 		matrix_4x4_mul(&view_projection_matrix, &projection_matrix, &view_matrix);
@@ -353,8 +352,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 		{
 			if (*players_present_iter)
 			{
-				matrix_4x4_rotation_z(&temp_rotation_matrix, player_snapshot_state->facing);
-				matrix_4x4_translation(&temp_translation_matrix, player_snapshot_state->x, player_snapshot_state->y, 0.0f);
+				matrix_4x4_rotation_z(&temp_rotation_matrix, player_snapshot_state->yaw);
+				matrix_4x4_translation(&temp_translation_matrix, player_snapshot_state->position);
 				matrix_4x4_mul(&temp_model_matrix, &temp_translation_matrix, &temp_rotation_matrix);
 				matrix_4x4_mul(player_mvp_matrix, &view_projection_matrix, &temp_model_matrix);
 				

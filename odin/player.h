@@ -1,22 +1,27 @@
 #pragma once
 
 #include "core.h"
+#include "maths.h"
 
 
 
 struct Player_Input
 {
 	bool32 up, down, left, right;
+	float32 pitch;
+	float32 yaw;
 };
 
 struct Player_Snapshot_State
 {
-	float32 x, y, facing;
+	Vec_3f position;
+	float32 pitch;
+	float32 yaw;
 };
 
 struct Player_Extra_State
 {
-	float32 speed;
+	Vec_3f velocity;
 };
 
 void tick_player(	Player_Snapshot_State* player_snapshot_state, 
