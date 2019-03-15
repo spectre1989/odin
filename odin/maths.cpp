@@ -4,6 +4,12 @@
 
 
 
+float32 f32_clamp(float32 f, float32 min, float32 max)
+{
+	return f < min ? min : (f > max ? max : f);
+}
+
+
 Vec_3f vec_3f(float32 x, float32 y, float32 z)
 {
 	Vec_3f v;

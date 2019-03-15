@@ -43,10 +43,12 @@ static void serialise_vec_3f(uint8** buffer, Vec_3f v)
 static void serialise_input(uint8** buffer, Player_Input* input)
 {
 	// if up/down/left/right are non-zero they're not necessarily 1
-	uint8 packed_input = (uint8)(input->up ? 1 : 0) |
-		(uint8)(input->down ? 1 << 1 : 0) |
-		(uint8)(input->left ? 1 << 2 : 0) |
-		(uint8)(input->right ? 1 << 3 : 0);
+	uint8 packed_input = 
+		(uint8)(input->up	?	1 : 0)		|
+		(uint8)(input->down ?	1 << 1 : 0)	|
+		(uint8)(input->left ?	1 << 2 : 0)	|
+		(uint8)(input->right?	1 << 3 : 0)	|
+		(uint8)(input->jump ?	1 << 4 : 0);
 
 	serialise_u8(buffer, packed_input);
 	serialise_f32(buffer, input->pitch);
@@ -99,10 +101,11 @@ static void deserialise_input(uint8** buffer, Player_Input* input)
 	deserialise_f32(buffer, &input->pitch);
 	deserialise_f32(buffer, &input->yaw);
 
-	input->up = packed_input & 1;
-	input->down = packed_input & (1 << 1);
-	input->left = packed_input & (1 << 2);
-	input->right = packed_input & (1 << 3);
+	input->up		= packed_input & 1;
+	input->down		= packed_input & (1 << 1);
+	input->left		= packed_input & (1 << 2);
+	input->right	= packed_input & (1 << 3);
+	input->jump		= packed_input & (1 << 4);
 }
 
 static void deserialise_player_snapshot_state(uint8** buffer, Player_Snapshot_State* player_snapshot_state)

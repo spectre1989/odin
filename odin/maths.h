@@ -4,6 +4,10 @@
 
 
 
+constexpr float32	c_pi = 3.14159265359f;
+constexpr float32	c_deg_to_rad = c_pi / 180.0f;
+
+
 struct Vec_3f
 {
 	float32 x, y, z;
@@ -28,6 +32,8 @@ struct Matrix_4x4
 			m14, m24, m34, m44;
 };
 
+
+float32 f32_clamp(float32 f, float32 min, float32 max);
 
 Vec_3f vec_3f(float32 x, float32 y, float32 z);
 Vec_3f vec_3f_add(Vec_3f a, Vec_3f b);

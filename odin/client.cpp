@@ -14,67 +14,112 @@
 
 
 
-struct Client_Globals
+struct Client_Input
 {
-	Player_Input player_input;
+	bool32 has_focus;
+	int32 mouse_x, mouse_y, mouse_delta_x, mouse_delta_y;
+	bool32 keys[256];
 };
 
-// todo(jbr) input thread
-static void update_input(Player_Input* player_input, WPARAM keycode, bool32 value)
+struct Client_Globals
 {
-	switch (keycode)
-	{
-		case 'A':
-			player_input->left = value;
-		break;
-
-		case 'D':
-			player_input->right = value;
-		break;
-
-		case 'W':
-			player_input->up = value;
-		break;
-
-		case 'S':
-			player_input->down = value;
-		break;
-	}
-}
+	Client_Input input;
+};
 
 static Client_Globals* get_client_globals(HWND window_handle)
 {
 	return (Client_Globals*)GetWindowLongPtr(window_handle, 0);
 }
 
-LRESULT CALLBACK WindowProc(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
+// todo(jbr) input thread?
+LRESULT CALLBACK window_callback(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
 {
+	Client_Globals* globals = get_client_globals(window_handle);
+
 	switch (message)
 	{
 		case WM_DESTROY:
 			PostQuitMessage(0);
-			return 0;
-		break;
+			break;
 
 		case WM_KEYDOWN:
-			update_input(&get_client_globals(window_handle)->player_input, w_param, 1);
-			return 0;
-		break;
+			if (globals->input.has_focus)
+			{
+				assert(w_param < 256);
+				globals->input.keys[w_param] = 1;
+				if (w_param == VK_ESCAPE)
+				{
+					ShowCursor(true);
+					globals->input.has_focus = 0;
+				}
+			}
+			break;
 
 		case WM_KEYUP:
-			update_input(&get_client_globals(window_handle)->player_input, w_param, 0);
-			return 0;
-		break;
+			if (globals->input.has_focus)
+			{
+				assert(w_param < 256);
+				globals->input.keys[w_param] = 0;
+			}
+			break;
+
+		case WM_LBUTTONDOWN:
+			globals->input.keys[VK_LBUTTON] = 1;
+			if (!globals->input.has_focus)
+			{
+				ShowCursor(false);
+			}
+			globals->input.has_focus = 1;
+			break;
+
+		case WM_LBUTTONUP:
+			globals->input.keys[VK_LBUTTON] = 0;
+			break;
+
+		case WM_RBUTTONDOWN:
+			globals->input.keys[VK_RBUTTON] = 1;
+			break;
+
+		case WM_RBUTTONUP:
+			globals->input.keys[VK_RBUTTON] = 0;
+			break;
+
+		case WM_MOUSEMOVE:
+			globals->input.mouse_x = l_param & 0xffff;
+			globals->input.mouse_y = (l_param >> 16) & 0xffff;
+
+			if (globals->input.has_focus)
+			{
+				RECT window_rect;
+				GetWindowRect(window_handle, &window_rect);
+
+				int32 mid_x = (window_rect.right - window_rect.left)/2;
+				int32 mid_y = (window_rect.bottom - window_rect.top)/2;
+
+				globals->input.mouse_delta_x += mid_x - globals->input.mouse_x;
+				globals->input.mouse_delta_y += mid_y - globals->input.mouse_y;
+				
+				POINT cursor_pos;
+				cursor_pos.x = mid_x;
+				cursor_pos.y = mid_y;
+				ClientToScreen(window_handle, &cursor_pos);
+				SetCursorPos(cursor_pos.x, cursor_pos.y);
+			}
+			break;
+
+		default:
+			return DefWindowProc(window_handle, message, w_param, l_param);
+			break;
 	}
 
-	return DefWindowProc(window_handle, message, w_param, l_param);
+	return 0;
 }
 
 int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cmd_line*/, int cmd_show)
 {
 	WNDCLASS window_class;
 	window_class.style = 0;
-	window_class.lpfnWndProc = WindowProc;
+	window_class.lpfnWndProc = window_callback;
 	window_class.cbClsExtra = 0;
 	window_class.cbWndExtra = sizeof(Client_Globals*);
 	window_class.hInstance = instance;
@@ -126,7 +171,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 	linear_allocator_create_sub_allocator(&allocator, &temp_allocator, megabytes(8));
 
 	Client_Globals* client_globals = (Client_Globals*)linear_allocator_alloc(&allocator, sizeof(Client_Globals));
-	client_globals->player_input = {};
+	client_globals->input = {};
 
 	SetWindowLongPtr(window_handle, 0, (LONG_PTR)client_globals);
 	
@@ -217,6 +262,11 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 			break;
 		}
 
+		// consume mouse deltas from input so it resets every tick
+		int32 mouse_delta_x = client_globals->input.mouse_delta_x;
+		int32 mouse_delta_y = client_globals->input.mouse_delta_y;
+		client_globals->input.mouse_delta_x = 0; 
+		client_globals->input.mouse_delta_y = 0;
 
 		// Process Packets
 		uint32 bytes_received;
@@ -292,15 +342,26 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 		// tick player if we have one
 		if (local_player_slot != (uint32)-1)
 		{
+			constexpr float32 c_mouse_sensitivity = 0.003f;
+
+			Player_Input player_input = {};
+			player_input.left = client_globals->input.keys['A'];
+			player_input.right = client_globals->input.keys['D'];
+			player_input.up = client_globals->input.keys['W'];
+			player_input.down = client_globals->input.keys['S'];
+			player_input.jump = client_globals->input.keys[VK_SPACE];
+			player_input.pitch = f32_clamp(local_player_snapshot_state->pitch - (mouse_delta_y * c_mouse_sensitivity), -85.0f * c_deg_to_rad, 85.0f * c_deg_to_rad);
+			player_input.yaw = local_player_snapshot_state->yaw + (mouse_delta_x * c_mouse_sensitivity);
+
 			float32 dt = c_seconds_per_tick;
 			
-			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &client_globals->player_input, prediction_id);
+			uint32 input_msg_size = Net::client_msg_input_write(socket_buffer, local_player_slot, dt, &player_input, prediction_id);
 			Net::socket_send(&sock, socket_buffer, input_msg_size, &server_endpoint);
 
 			tick_player(local_player_snapshot_state, 
 						local_player_extra_state, 
 						dt, 
-						&client_globals->player_input);
+						&player_input);
 
 			uint32					index	= prediction_id & c_prediction_buffer_mask;
 
@@ -308,7 +369,7 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 			Predicted_Move_Result*	result	= &predicted_move_result[index];
 
 			move->dt						= dt;
-			move->input						= client_globals->player_input;
+			move->input						= player_input;
 			result->snapshot_state			= *local_player_snapshot_state;
 			result->extra_state				= *local_player_extra_state;
 			

@@ -7,7 +7,7 @@
 
 struct Player_Input
 {
-	bool32 up, down, left, right;
+	bool32 up, down, left, right, jump;
 	float32 pitch;
 	float32 yaw;
 };
