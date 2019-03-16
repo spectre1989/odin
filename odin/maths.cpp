@@ -4,6 +4,11 @@
 
 
 
+float32 f32_max(float32 a, float32 b)
+{
+	return a > b ? a : b;
+}
+
 float32 f32_clamp(float32 f, float32 min, float32 max)
 {
 	return f < min ? min : (f > max ? max : f);

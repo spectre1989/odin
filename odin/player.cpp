@@ -5,7 +5,7 @@
 
 
 constexpr float32 c_player_movement_speed = 10.0f;
-constexpr float32 c_jumping_speed = 10.0f;
+constexpr float32 c_jumping_speed = 4.5f;
 
 
 void tick_player(	Player_Snapshot_State* player_snapshot_state, 
@@ -15,7 +15,7 @@ void tick_player(	Player_Snapshot_State* player_snapshot_state,
 {
 	bool is_grounded = player_snapshot_state->position.z == 0.0f;
 
-	Vec_3f velocity = vec_3f(0.0f, 0.0f, 0.0f);
+	Vec_3f velocity = player_extra_state->velocity;
 
 	if (is_grounded)
 	{
@@ -62,7 +62,10 @@ void tick_player(	Player_Snapshot_State* player_snapshot_state,
 		Vec_3f position_delta = vec_3f_add(vec_3f_mul(velocity, dt), vec_3f_mul(velocity_delta, 0.5f * dt));
 
 		player_snapshot_state->position = vec_3f_add(player_snapshot_state->position, position_delta);
-		player_extra_state->velocity = vec_3f_add(player_extra_state->velocity, velocity_delta);
+		player_snapshot_state->position.z = f32_max(player_snapshot_state->position.z, 0.0f);
+		log("%f\n", player_snapshot_state->position.z);
+
+		player_extra_state->velocity = vec_3f_add(velocity, velocity_delta);
 	}
 	else
 	{
