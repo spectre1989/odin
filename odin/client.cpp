@@ -204,6 +204,8 @@ int CALLBACK WinMain(HINSTANCE instance, HINSTANCE /*prev_instance*/, LPSTR /*cm
 
 	Player_Snapshot_State*	local_player_snapshot_state			= (Player_Snapshot_State*)	linear_allocator_alloc(&allocator, sizeof(Player_Snapshot_State));
 	Player_Extra_State*		local_player_extra_state			= (Player_Extra_State*)		linear_allocator_alloc(&allocator, sizeof(Player_Extra_State));
+	*local_player_snapshot_state = {};
+	*local_player_extra_state = {};
 
 	struct Predicted_Move
 	{
